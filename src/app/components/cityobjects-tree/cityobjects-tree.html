@@ -1,0 +1,10 @@
+<h3>City Objects</h3>
+<div *ngIf="cityjson">
+  <ul>
+    <li *ngFor="let entry of getCityObjectEntries()">
+      <button (click)="onSelect(entry[0])">
+        {{ entry[0] }} <span style="color: #888;">({{ getObjectType(entry[1]) }})</span>
+      </button>
+    </li>
+  </ul>
+</div>
