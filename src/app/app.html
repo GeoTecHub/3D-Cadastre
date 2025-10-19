@@ -1,7 +1,7 @@
 <div style="margin: 2rem;">
   <div *ngIf="fileError" style="color: red; margin-top: 1rem;">{{ fileError }}</div>
   <div style="margin-top: 1rem;">
-    <app-threejs-viewer [cityjson]="cityjson"></app-threejs-viewer>
+    <app-itowns-viewer [cityjson]="cityjson"></app-itowns-viewer>
     <app-cityobjects-tree
       [cityjson]="cityjson"
       (selectObject)="onObjectSelected($event)">

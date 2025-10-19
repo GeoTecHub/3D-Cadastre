@@ -1,16 +1,14 @@
 import { Component, OnInit } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
 import { CityjsonService } from './services/cityjson';
 import { CommonModule } from '@angular/common';
-import { ThreejsViewer } from './components/threejs-viewer/threejs-viewer';
 import { CityobjectsTree } from './components/cityobjects-tree/cityobjects-tree';
 import { ChangeDetectorRef } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { ENDPOINT_URL } from '../../env'
+import { ENDPOINT_URL } from '../../env';
+import { ItownsViewer } from './components/itowns-viewer/itowns-viewer';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, CommonModule, ThreejsViewer, CityobjectsTree],
+  imports: [CommonModule, ItownsViewer, CityobjectsTree],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
@@ -26,7 +24,7 @@ export class App implements OnInit {
   ) { }
 
   ngOnInit() {
-    this.cityjsonService.loadCityJSONFromUrl('/twobuildings.city.json')
+    this.cityjsonService.loadCityJSONFromUrl('/lod2_appartment.city.json')
       .then(data => {
         this.cityjson = data;
         this.viewerKey = Date.now();
@@ -49,7 +47,7 @@ export class App implements OnInit {
     //     this.cdr.detectChanges();
     //   });
 
-      console.log(process.env['ENDPOINT']?.toString)
+    console.log('Configured API endpoint:', ENDPOINT_URL);
   }
 
   onObjectSelected(objId: string) {
