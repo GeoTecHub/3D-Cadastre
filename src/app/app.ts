@@ -26,28 +26,28 @@ export class App implements OnInit {
   ) { }
 
   ngOnInit() {
-    // this.cityjsonService.loadCityJSONFromUrl('/twobuildings.city.json')
-    //   .then(data => {
-    //     this.cityjson = data;
-    //     this.viewerKey = Date.now();
-    //     this.cdr.detectChanges();
-    //   })
-    //   .catch(err => {
-    //     this.fileError = 'Failed to load CityJSON: ' + err;
-    //     this.cdr.detectChanges();
-    //   });
-
-    this.cityjsonService.getCityJSONFromApi(ENDPOINT_URL)
+    this.cityjsonService.loadCityJSONFromUrl('/twobuildings.city.json')
       .then(data => {
-        this.cityjson = data[0]?.cityjson_data;
-
+        this.cityjson = data;
         this.viewerKey = Date.now();
         this.cdr.detectChanges();
       })
       .catch(err => {
-        this.fileError = 'Failed to load CityJSON from API: ' + err.message;
+        this.fileError = 'Failed to load CityJSON: ' + err;
         this.cdr.detectChanges();
       });
+
+    // this.cityjsonService.getCityJSONFromApi(ENDPOINT_URL)
+    //   .then(data => {
+    //     this.cityjson = data[0]?.cityjson_data;
+
+    //     this.viewerKey = Date.now();
+    //     this.cdr.detectChanges();
+    //   })
+    //   .catch(err => {
+    //     this.fileError = 'Failed to load CityJSON from API: ' + err.message;
+    //     this.cdr.detectChanges();
+    //   });
 
       console.log(process.env['ENDPOINT']?.toString)
   }
