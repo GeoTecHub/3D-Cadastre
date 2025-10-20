@@ -84,20 +84,7 @@ export class ItownsViewer implements AfterViewInit, OnChanges, OnDestroy {
     this.buildingGroup = group;
     this.view.scene.add(group);
     this.configureCamera(maxRadius);
-
-    const controls = (this.view as any).controls;
-    if (controls?.lookAt && center) {
-      const target = new (itowns as any).Coordinates(
-        'EPSG:4326',
-        center[0],
-        center[1],
-        center[2]
-      );
-      controls.lookAt({
-        coord: target,
-        range: Math.max(maxRadius * 4, 0.005),
-      });
-    }
+    this.positionCamera(center, maxRadius);
 
     this.view.notifyChange(this);
   }
@@ -118,6 +105,35 @@ export class ItownsViewer implements AfterViewInit, OnChanges, OnDestroy {
       camera.far = far;
       camera.updateProjectionMatrix();
     }
+  }
+
+  private positionCamera(center: [number, number, number], maxRadius: number) {
+    if (!this.view) {
+      return;
+    }
+    const camera =
+      (this.view as any).camera3D ??
+      (this.view as any).camera ??
+      (this.view as any)?.camera?.camera3D;
+    const CameraUtils = (itowns as any)?.CameraUtils;
+    if (!camera || !CameraUtils?.transformCameraToLookAtTarget) {
+      return;
+    }
+    const coord = new (itowns as any).Coordinates(
+      'EPSG:4326',
+      center[0],
+      center[1],
+      center[2]
+    );
+    const placement = {
+      coord,
+      range: Math.max(maxRadius * 6, 20),
+      tilt: 45,
+      heading: 0,
+    };
+    CameraUtils.transformCameraToLookAtTarget(this.view, camera, placement);
+    const controls = (this.view as any).controls;
+    controls?.update?.(0, false);
   }
 
   private computeExtent(cityjson: any): Extent {
