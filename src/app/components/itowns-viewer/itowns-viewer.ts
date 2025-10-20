@@ -29,6 +29,8 @@ export class ItownsViewer implements AfterViewInit, OnChanges, OnDestroy {
   private view: PlanarView | null = null;
   private buildingGroup: THREE.Group | null = null;
   private initialized = false;
+  private ambientLight: THREE.AmbientLight | null = null;
+  private directionalLight: THREE.DirectionalLight | null = null;
 
   ngAfterViewInit(): void {
     this.initialized = true;
@@ -63,6 +65,8 @@ export class ItownsViewer implements AfterViewInit, OnChanges, OnDestroy {
       );
     }
 
+    this.ensureLights();
+
     this.updateCityLayer();
   }
 
@@ -79,6 +83,7 @@ export class ItownsViewer implements AfterViewInit, OnChanges, OnDestroy {
     const { group, center, maxRadius } = this.buildCityGroup(this.cityjson);
     this.buildingGroup = group;
     this.view.scene.add(group);
+    this.configureCamera(maxRadius);
 
     const controls = (this.view as any).controls;
     if (controls?.lookAt && center) {
@@ -95,6 +100,24 @@ export class ItownsViewer implements AfterViewInit, OnChanges, OnDestroy {
     }
 
     this.view.notifyChange(this);
+  }
+
+  private configureCamera(maxRadius: number) {
+    if (!this.view) {
+      return;
+    }
+    const camera =
+      (this.view as any).camera3D ??
+      (this.view as any).camera ??
+      (this.view as any)?.camera?.camera3D;
+    if (camera) {
+      const minNear = 1e-4;
+      const near = Math.max(minNear, maxRadius / 500 || minNear);
+      const far = Math.max(near * 1000, maxRadius * 100 || 10);
+      camera.near = near;
+      camera.far = far;
+      camera.updateProjectionMatrix();
+    }
   }
 
   private computeExtent(cityjson: any): Extent {
@@ -300,11 +323,34 @@ export class ItownsViewer implements AfterViewInit, OnChanges, OnDestroy {
         this.view.scene.remove(this.buildingGroup);
         this.buildingGroup = null;
       }
+      if (this.ambientLight) {
+        this.view.scene.remove(this.ambientLight);
+        this.ambientLight = null;
+      }
+      if (this.directionalLight) {
+        this.view.scene.remove(this.directionalLight);
+        this.directionalLight = null;
+      }
 
       if (typeof this.view.dispose === 'function') {
         this.view.dispose();
       }
     }
     this.view = null;
+  }
+
+  private ensureLights() {
+    if (!this.view) {
+      return;
+    }
+    if (!this.ambientLight) {
+      this.ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+      this.view.scene.add(this.ambientLight);
+    }
+    if (!this.directionalLight) {
+      this.directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      this.directionalLight.position.set(0.3, 0.3, 1).normalize();
+      this.view.scene.add(this.directionalLight);
+    }
   }
 }

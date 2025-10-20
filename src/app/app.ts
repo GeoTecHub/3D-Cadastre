@@ -3,7 +3,6 @@ import { CityjsonService } from './services/cityjson';
 import { CommonModule } from '@angular/common';
 import { CityobjectsTree } from './components/cityobjects-tree/cityobjects-tree';
 import { ChangeDetectorRef } from '@angular/core';
-import { ENDPOINT_URL } from '../../env';
 import { ItownsViewer } from './components/itowns-viewer/itowns-viewer';
 
 @Component({
@@ -17,6 +16,7 @@ export class App implements OnInit {
   fileError: string | null = null;
   viewerKey = Date.now();
   selectedObjectId: string | null = null;
+  private readonly localCityJsonPath = '/lod2_appartment.city.json';
 
   constructor(
     private cityjsonService: CityjsonService,
@@ -24,18 +24,19 @@ export class App implements OnInit {
   ) { }
 
   ngOnInit() {
-    this.cityjsonService.loadCityJSONFromUrl('/lod2_appartment.city.json')
+    this.cityjsonService.loadCityJSONFromUrl(this.localCityJsonPath)
       .then(data => {
         this.cityjson = data;
         this.viewerKey = Date.now();
         this.cdr.detectChanges();
+        console.log('Loaded CityJSON from local asset:', this.localCityJsonPath);
       })
       .catch(err => {
         this.fileError = 'Failed to load CityJSON: ' + err;
         this.cdr.detectChanges();
       });
 
-    // this.cityjsonService.getCityJSONFromApi(ENDPOINT_URL)
+    // this.cityjsonService.getCityJSONFromApi('https://example.com/cityjson')
     //   .then(data => {
     //     this.cityjson = data[0]?.cityjson_data;
 
@@ -47,7 +48,6 @@ export class App implements OnInit {
     //     this.cdr.detectChanges();
     //   });
 
-    console.log('Configured API endpoint:', ENDPOINT_URL);
   }
 
   onObjectSelected(objId: string) {
