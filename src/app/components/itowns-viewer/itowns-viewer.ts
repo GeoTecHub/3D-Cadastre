@@ -8,16 +8,14 @@ import {
   SimpleChanges,
   ViewChild,
 } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import * as THREE from 'three';
-import * as itowns from 'itowns';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import earcut from 'earcut';
-
-type Extent = any;
-type PlanarView = any;
 
 @Component({
   selector: 'app-itowns-viewer',
-  imports: [],
+  imports: [CommonModule],
   templateUrl: './itowns-viewer.html',
   styleUrl: './itowns-viewer.css',
 })
@@ -26,281 +24,327 @@ export class ItownsViewer implements AfterViewInit, OnChanges, OnDestroy {
   @ViewChild('viewerContainer', { static: true })
   viewerContainer!: ElementRef<HTMLDivElement>;
 
-  private view: PlanarView | null = null;
-  private buildingGroup: THREE.Group | null = null;
+  private scene!: THREE.Scene;
+  private camera!: THREE.PerspectiveCamera;
+  private renderer!: THREE.WebGLRenderer;
+  private controls!: OrbitControls;
+  private buildingGroup!: THREE.Group;
+  private animationId: number | null = null;
   private initialized = false;
-  private ambientLight: THREE.AmbientLight | null = null;
-  private directionalLight: THREE.DirectionalLight | null = null;
+
+  private raycaster = new THREE.Raycaster();
+  private mouse = new THREE.Vector2();
+  private selectedMesh: THREE.Mesh | null = null;
+  private originalMaterial: THREE.Material | null = null;
+  private meshMap: Map<THREE.Mesh, { objectId: string; surfaceType: string }> = new Map();
+  
+  selectedInfo: { objectId: string; surfaceType: string; position: string } | null = null;
+
+  private SURFACE_COLORS: Record<string, number> = {
+    GroundSurface: 0xdddddd,
+    WallSurface: 0xbbbbbb,
+    RoofSurface: 0xff5555,
+  };
+  private DEFAULT_COLOR = 0xcccccc;
 
   ngAfterViewInit(): void {
     this.initialized = true;
     if (this.cityjson) {
-      this.initView();
+      this.initScene();
     }
   }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['cityjson'] && this.cityjson && this.initialized) {
-      this.initView();
+      this.initScene();
     }
   }
 
   ngOnDestroy(): void {
-    this.disposeView();
+    if (this.animationId) cancelAnimationFrame(this.animationId);
+    if (this.renderer) this.renderer.dispose();
+    if (this.renderer?.domElement) {
+      this.renderer.domElement.removeEventListener('click', this.onCanvasClick);
+      this.renderer.domElement.removeEventListener('mousemove', this.onCanvasMouseMove);
+    }
   }
 
-  private initView() {
-    if (!this.cityjson || !this.viewerContainer?.nativeElement) {
-      return;
+  private initScene() {
+    if (this.renderer) {
+      this.renderer.dispose();
+      this.renderer = null as any;
+    }
+    if (this.animationId) {
+      cancelAnimationFrame(this.animationId);
+      this.animationId = null;
     }
 
-    const container = this.viewerContainer.nativeElement;
-    const extent = this.computeExtent(this.cityjson);
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(0xf0f0f0);
 
-    if (!this.view) {
-      this.view = new (itowns as any).PlanarView(
-        container,
-        extent,
-        { controls: { enableTilt: true } }
-      );
-    }
+    const width = this.viewerContainer.nativeElement.clientWidth || 800;
+    const height = this.viewerContainer.nativeElement.clientHeight || 600;
 
-    this.ensureLights();
+    this.camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 10000000);
+    this.camera.up.set(0, 0, 1);
 
-    this.updateCityLayer();
+    this.renderer = new THREE.WebGLRenderer({
+      canvas: this.createCanvas(),
+      antialias: true,
+      alpha: false,
+    });
+    this.renderer.setSize(width, height);
+    this.renderer.setPixelRatio(window.devicePixelRatio);
+
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+    directionalLight.position.set(100, 100, 100);
+    this.scene.add(directionalLight);
+
+    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+    this.controls.enableDamping = true;
+    this.controls.dampingFactor = 0.15;
+    this.controls.screenSpacePanning = false;
+    this.controls.minDistance = 1;
+    this.controls.maxDistance = 10000000;
+    this.controls.enablePan = true;
+    this.controls.rotateSpeed = 0.7;
+    this.controls.zoomSpeed = 0.6;
+    this.controls.panSpeed = 0.5;
+    this.controls.minPolarAngle = 0;
+    this.controls.maxPolarAngle = Math.PI;
+
+    this.drawCityObjects();
+    this.setupEventListeners();
+    this.animate();
   }
 
-  private updateCityLayer() {
-    if (!this.view || !this.cityjson) {
-      return;
+  private createCanvas(): HTMLCanvasElement {
+    const existing = this.viewerContainer.nativeElement.querySelector('canvas');
+    if (existing) {
+      this.viewerContainer.nativeElement.removeChild(existing);
     }
+    const canvas = document.createElement('canvas');
+    canvas.style.display = 'block';
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    this.viewerContainer.nativeElement.appendChild(canvas);
+    return canvas;
+  }
+
+  private drawCityObjects() {
+    if (!this.cityjson || !this.cityjson.CityObjects || !this.cityjson.vertices) return;
 
     if (this.buildingGroup) {
-      this.view.scene.remove(this.buildingGroup);
-      this.buildingGroup = null;
+      this.scene.remove(this.buildingGroup);
     }
+    this.buildingGroup = new THREE.Group();
+    this.meshMap.clear();
 
-    const { group, center, maxRadius } = this.buildCityGroup(this.cityjson);
-    this.buildingGroup = group;
-    this.view.scene.add(group);
-    this.configureCamera(maxRadius);
-    this.positionCamera(center, maxRadius);
-
-    this.view.notifyChange(this);
-  }
-
-  private configureCamera(maxRadius: number) {
-    if (!this.view) {
-      return;
-    }
-    const camera =
-      (this.view as any).camera3D ??
-      (this.view as any).camera ??
-      (this.view as any)?.camera?.camera3D;
-    if (camera) {
-      const minNear = 1e-4;
-      const near = Math.max(minNear, maxRadius / 500 || minNear);
-      const far = Math.max(near * 1000, maxRadius * 100 || 10);
-      camera.near = near;
-      camera.far = far;
-      camera.updateProjectionMatrix();
-    }
-  }
-
-  private positionCamera(center: [number, number, number], maxRadius: number) {
-    if (!this.view) {
-      return;
-    }
-    const camera =
-      (this.view as any).camera3D ??
-      (this.view as any).camera ??
-      (this.view as any)?.camera?.camera3D;
-    const CameraUtils = (itowns as any)?.CameraUtils;
-    if (!camera || !CameraUtils?.transformCameraToLookAtTarget) {
-      return;
-    }
-    const coord = new (itowns as any).Coordinates(
-      'EPSG:4326',
-      center[0],
-      center[1],
-      center[2]
-    );
-    const placement = {
-      coord,
-      range: Math.max(maxRadius * 6, 20),
-      tilt: 45,
-      heading: 0,
-    };
-    CameraUtils.transformCameraToLookAtTarget(this.view, camera, placement);
-    const controls = (this.view as any).controls;
-    controls?.update?.(0, false);
-  }
-
-  private computeExtent(cityjson: any): Extent {
-    const metadataExtent = cityjson?.metadata?.geographicalExtent;
-    if (Array.isArray(metadataExtent) && metadataExtent.length >= 5) {
-      return new (itowns as any).Extent(
-        'EPSG:4326',
-        metadataExtent[0],
-        metadataExtent[3],
-        metadataExtent[1],
-        metadataExtent[4]
-      );
-    }
-
-    const vertices = this.getTransformedVertices(
-      cityjson?.vertices || [],
-      cityjson?.transform
+    const transform = this.cityjson.transform;
+    const allVertices = this.getTransformedVertices(
+      this.cityjson.vertices,
+      transform
     );
 
-    if (vertices.length === 0) {
-      return new (itowns as any).Extent('EPSG:4326', -10, 10, -10, 10);
-    }
+    const vertexBox = new THREE.Box3();
+    allVertices.forEach(v => vertexBox.expandByPoint(new THREE.Vector3(v[0], v[1], v[2])));
+    const groupCenter = vertexBox.getCenter(new THREE.Vector3());
+    const size = vertexBox.getSize(new THREE.Vector3());
+    let maxDim = Math.max(size.x, size.y, size.z);
 
-    const xs = vertices.map((v) => v[0]);
-    const ys = vertices.map((v) => v[1]);
+    console.log('Group center:', groupCenter);
+    console.log('Max dim:', maxDim);
 
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
-    const minY = Math.min(...ys);
-    const maxY = Math.max(...ys);
+    let meshCount = 0;
 
-    return new (itowns as any).Extent('EPSG:4326', minX, maxX, minY, maxY);
-  }
+    Object.entries(this.cityjson.CityObjects).forEach(([objectId, obj]: [string, any]) => {
+      if (!obj.geometry) return;
+      obj.geometry.forEach((geom: any) => {
+        const semantics = geom.semantics;
+        const surfaces = semantics?.surfaces || [];
+        const values = semantics?.values || [];
+        let faceIndex = 0;
+        this.traverseBoundaries(geom.boundaries, (ring) => {
+          const geometry = this.polygonToGeometry(ring, allVertices, groupCenter);
 
-  private buildCityGroup(cityjson: any): {
-    group: THREE.Group;
-    center: [number, number, number];
-    maxRadius: number;
-  } {
-    const vertices = this.getTransformedVertices(
-      cityjson.vertices || [],
-      cityjson.transform
-    );
+          if (geometry) {
+            let color = this.DEFAULT_COLOR;
+            if (values && surfaces && values[faceIndex] !== undefined) {
+              const surfaceIdx = values[faceIndex];
+              const type = surfaces[surfaceIdx]?.type;
+              if (type && this.SURFACE_COLORS[type])
+                color = this.SURFACE_COLORS[type];
+            }
+            const mesh = new THREE.Mesh(
+              geometry,
+              new THREE.MeshStandardMaterial({
+                color,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.95,
+              })
+            );
+            this.buildingGroup.add(mesh);
+            meshCount++;
 
-    const vertexVectors = vertices.map(
-      (v) => new THREE.Vector3(v[0], v[1], v[2] || 0)
-    );
-
-    const boundingBox = vertexVectors.length
-      ? new THREE.Box3().setFromPoints(vertexVectors)
-      : new THREE.Box3(new THREE.Vector3(-1, -1, -1), new THREE.Vector3(1, 1, 1));
-    const centerVec = boundingBox.getCenter(new THREE.Vector3());
-    const maxRadius = boundingBox.getSize(new THREE.Vector3()).length() / 2 || 1;
-
-    const group = new THREE.Group();
-    group.position.copy(centerVec);
-
-    const colors = this.surfaceColors();
-
-    const cityObjects = cityjson.CityObjects || {};
-    for (const [objectId, cityObj] of Object.entries<any>(cityObjects)) {
-      if (!Array.isArray(cityObj.geometry)) continue;
-
-      for (const geometry of cityObj.geometry) {
-        if (!geometry || !geometry.boundaries) continue;
-
-        const semantics = geometry.semantics;
-        let surfaceIndex = 0;
-        this.traverseBoundaries(geometry.boundaries, (ring: number[]) => {
-          const geometry3d = this.polygonToGeometry(
-            ring,
-            vertices,
-            centerVec
-          );
-          if (!geometry3d) return;
-
-          const surfaceType =
-            semantics?.surfaces?.[surfaceIndex]?.type || 'Default';
-
-          const material = new THREE.MeshStandardMaterial({
-            color: colors[surfaceType] ?? colors['Default'],
-            transparent: true,
-            opacity: 0.95,
-            side: THREE.DoubleSide,
-          });
-
-          const mesh = new THREE.Mesh(geometry3d, material);
-          mesh.name = `${objectId}_${surfaceIndex}`;
-          group.add(mesh);
-          surfaceIndex += 1;
+            const surfaceType = surfaces[faceIndex]?.type || 'Default';
+            this.meshMap.set(mesh, { objectId, surfaceType });
+          }
+          faceIndex++;
         });
-      }
-    }
+      });
+    });
 
-    return {
-      group,
-      center: [centerVec.x, centerVec.y, centerVec.z],
-      maxRadius,
-    };
+    this.buildingGroup.position.set(0, 0, 0);
+    this.scene.add(this.buildingGroup);
+
+    console.log('Meshes created:', meshCount);
+
+    this.fitCameraToVertices(vertexBox, groupCenter);
   }
 
   private polygonToGeometry(
     indices: number[],
     vertices: number[][],
-    center: THREE.Vector3
+    groupCenter: THREE.Vector3
   ): THREE.BufferGeometry | null {
     if (!Array.isArray(indices) || indices.length < 3) return null;
-
     const points3d = indices.map((idx) => {
       const v = vertices[idx];
-      return new THREE.Vector3(
-        (v?.[0] ?? 0) - center.x,
-        (v?.[1] ?? 0) - center.y,
-        (v?.[2] ?? 0) - center.z
-      );
+      return [
+        v[0] - groupCenter.x,
+        v[1] - groupCenter.y,
+        v[2] - groupCenter.z
+      ];
     });
 
-    const normal = this.computeNormal(points3d);
-    const dominant = this.dominantAxes(normal);
-
-    const projected = points3d.map((pt) => [
-      pt.getComponent(dominant[0]),
-      pt.getComponent(dominant[1]),
-    ]);
-    const flatPoints = projected.flat();
-
-    const triangles = earcut(flatPoints);
+    const n = this.getNormal(points3d);
+    let axis1 = 0, axis2 = 1;
+    if (Math.abs(n[2]) > Math.abs(n[0]) && Math.abs(n[2]) > Math.abs(n[1])) {
+      axis1 = 0; axis2 = 1;
+    } else if (Math.abs(n[0]) > Math.abs(n[1])) {
+      axis1 = 1; axis2 = 2;
+    } else {
+      axis1 = 0; axis2 = 2;
+    }
+    const points2d = points3d.map(pt => [pt[axis1], pt[axis2]]).flat();
+    const triangles = earcut(points2d);
     const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute(
-      'position',
-      new THREE.Float32BufferAttribute(
-        points3d.flatMap((p) => p.toArray()),
-        3
-      )
-    );
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(points3d.flat(), 3));
     geometry.setIndex(triangles);
     geometry.computeVertexNormals();
     return geometry;
   }
 
-  private computeNormal(points: THREE.Vector3[]): THREE.Vector3 {
-    const normal = new THREE.Vector3();
-    for (let i = 0; i < points.length; i += 1) {
-      const current = points[i];
-      const next = points[(i + 1) % points.length];
-      normal.x += (current.y - next.y) * (current.z + next.z);
-      normal.y += (current.z - next.z) * (current.x + next.x);
-      normal.z += (current.x - next.x) * (current.y + next.y);
-    }
-    return normal.normalize();
+  private fitCameraToVertices(box: THREE.Box3, center: THREE.Vector3) {
+    const size = box.getSize(new THREE.Vector3());
+    let maxDim = Math.max(size.x, size.y, size.z);
+    if (maxDim < 1) maxDim = 1;
+
+    const cameraDistance = maxDim * 2;
+
+    this.camera.position.set(
+      0 - cameraDistance,
+      0 + cameraDistance,
+      0 + cameraDistance
+    );
+    this.camera.up.set(0, 0, 1);
+    this.camera.lookAt(0, 0, 0);
+    this.controls.target.set(0, 0, 0);
+
+    this.controls.minDistance = maxDim * 0.1;
+    this.controls.maxDistance = maxDim * 10;
+    this.controls.update();
+
+    console.log("Box size:", size, "maxDim:", maxDim, "CameraDistance:", cameraDistance);
   }
 
-  private dominantAxes(normal: THREE.Vector3): [number, number] {
-    const absNormal = normal.clone().set(Math.abs(normal.x), Math.abs(normal.y), Math.abs(normal.z));
-    if (absNormal.z >= absNormal.x && absNormal.z >= absNormal.y) {
-      return [0, 1];
-    }
-    if (absNormal.x >= absNormal.y && absNormal.x >= absNormal.z) {
-      return [1, 2];
-    }
-    return [0, 2];
+  private setupEventListeners() {
+    if (!this.renderer?.domElement) return;
+
+    this.renderer.domElement.addEventListener('click', this.onCanvasClick);
+    this.renderer.domElement.addEventListener('mousemove', this.onCanvasMouseMove);
   }
 
-  private traverseBoundaries(
-    boundary: any,
-    callback: (ring: number[]) => void
-  ) {
+  private onCanvasClick = (event: MouseEvent) => {
+    if (!this.renderer || !this.buildingGroup) return;
+
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+    this.raycaster.setFromCamera(this.mouse, this.camera);
+
+    const intersects = this.raycaster.intersectObjects(
+      this.buildingGroup.children,
+      true
+    );
+
+    if (intersects.length > 0) {
+      const intersectedMesh = intersects[0].object as THREE.Mesh;
+      this.selectMesh(intersectedMesh);
+    } else {
+      this.deselectMesh();
+    }
+  };
+
+  private onCanvasMouseMove = (event: MouseEvent) => {
+    if (!this.renderer || !this.buildingGroup) return;
+
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+    this.raycaster.setFromCamera(this.mouse, this.camera);
+
+    const intersects = this.raycaster.intersectObjects(
+      this.buildingGroup.children,
+      true
+    );
+
+    this.renderer.domElement.style.cursor = intersects.length > 0 ? 'pointer' : 'default';
+  };
+
+  private selectMesh(mesh: THREE.Mesh) {
+    if (this.selectedMesh === mesh) return;
+
+    this.deselectMesh();
+
+    this.selectedMesh = mesh;
+    this.originalMaterial = mesh.material as THREE.Material;
+
+    const info = this.meshMap.get(mesh);
+    if (info) {
+      this.selectedInfo = {
+        objectId: info.objectId,
+        surfaceType: info.surfaceType,
+        position: `(${mesh.position.x.toFixed(2)}, ${mesh.position.y.toFixed(2)}, ${mesh.position.z.toFixed(2)})`,
+      };
+    }
+
+    const highlightMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffff00,
+      emissive: 0xffff00,
+      emissiveIntensity: 0.5,
+      transparent: true,
+      opacity: 0.95,
+      side: THREE.DoubleSide,
+    });
+
+    mesh.material = highlightMaterial;
+  }
+
+  private deselectMesh() {
+    if (this.selectedMesh && this.originalMaterial) {
+      this.selectedMesh.material = this.originalMaterial;
+      this.selectedMesh = null;
+      this.originalMaterial = null;
+      this.selectedInfo = null;
+    }
+  }
+
+  private traverseBoundaries(boundary: any, callback: (ring: number[]) => void) {
     if (!boundary) return;
     if (Array.isArray(boundary[0])) {
       boundary.forEach((b: any) => this.traverseBoundaries(b, callback));
@@ -309,64 +353,35 @@ export class ItownsViewer implements AfterViewInit, OnChanges, OnDestroy {
     }
   }
 
-  private surfaceColors(): Record<string, number> {
-    return {
-      GroundSurface: 0xdddddd,
-      WallSurface: 0xbbbbbb,
-      RoofSurface: 0xff5555,
-      Default: 0xcccccc,
-    };
+  private getNormal(points: number[][]): number[] {
+    let nx = 0, ny = 0, nz = 0;
+    for (let i = 0; i < points.length; i++) {
+      const current = points[i];
+      const next = points[(i + 1) % points.length];
+      nx += (current[1] - next[1]) * (current[2] + next[2]);
+      ny += (current[2] - next[2]) * (current[0] + next[0]);
+      nz += (current[0] - next[0]) * (current[1] + next[1]);
+    }
+    return [nx, ny, nz];
   }
 
-  private getTransformedVertices(vertices: number[][], transform: any) {
-    if (!Array.isArray(vertices)) {
-      return [];
-    }
-    if (!transform?.scale || !transform?.translate) {
-      return vertices.map((v) => [(v?.[0] ?? 0), (v?.[1] ?? 0), v?.[2] ?? 0]);
-    }
-
+  private getTransformedVertices(
+    vertices: number[][],
+    transform: any
+  ): number[][] {
+    if (!transform || !transform.scale || !transform.translate) return vertices;
     return vertices.map((v) => [
       v[0] * transform.scale[0] + transform.translate[0],
       v[1] * transform.scale[1] + transform.translate[1],
-      (v[2] ?? 0) * transform.scale[2] + transform.translate[2],
+      v[2] * transform.scale[2] + transform.translate[2],
     ]);
   }
 
-  private disposeView() {
-    if (this.view) {
-      if (this.buildingGroup) {
-        this.view.scene.remove(this.buildingGroup);
-        this.buildingGroup = null;
-      }
-      if (this.ambientLight) {
-        this.view.scene.remove(this.ambientLight);
-        this.ambientLight = null;
-      }
-      if (this.directionalLight) {
-        this.view.scene.remove(this.directionalLight);
-        this.directionalLight = null;
-      }
-
-      if (typeof this.view.dispose === 'function') {
-        this.view.dispose();
-      }
+  private animate = () => {
+    if (this.renderer && this.scene && this.camera && this.controls) {
+      this.controls.update();
+      this.renderer.render(this.scene, this.camera);
+      this.animationId = requestAnimationFrame(this.animate);
     }
-    this.view = null;
-  }
-
-  private ensureLights() {
-    if (!this.view) {
-      return;
-    }
-    if (!this.ambientLight) {
-      this.ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-      this.view.scene.add(this.ambientLight);
-    }
-    if (!this.directionalLight) {
-      this.directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-      this.directionalLight.position.set(0.3, 0.3, 1).normalize();
-      this.view.scene.add(this.directionalLight);
-    }
-  }
+  };
 }

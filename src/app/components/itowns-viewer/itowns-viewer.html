@@ -1,1 +1,22 @@
-<div #viewerContainer class="itowns-viewer"></div>
+
+<div class="viewer-wrapper">
+  <div #viewerContainer class="viewer-container"></div>
+  
+  <div class="info-panel" *ngIf="selectedInfo">
+    <div class="info-header">Selected Object</div>
+    <div class="info-item">
+      <strong>Object ID:</strong>
+      <span>{{ selectedInfo.objectId }}</span>
+    </div>
+    <div class="info-item">
+      <strong>Surface Type:</strong>
+      <span>{{ selectedInfo.surfaceType }}</span>
+    </div>
+    <div class="info-item">
+      <strong>Position:</strong>
+      <span>{{ selectedInfo.position }}</span>
+    </div>
+  </div>
+
+  <div class="hint">Click on objects to select • Hover to highlight</div>
+</div>
