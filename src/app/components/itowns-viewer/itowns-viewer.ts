@@ -24,6 +24,11 @@ export class ItownsViewer implements AfterViewInit, OnChanges, OnDestroy {
   @ViewChild('viewerContainer', { static: true })
   viewerContainer!: ElementRef<HTMLDivElement>;
 
+  // Add these fields
+  private objectMeshes: Map<string, THREE.Mesh[]> = new Map();
+  private originalMatsByObject: Map<string, THREE.Material[]> = new Map();
+  private selectedObjectId: string | null = null;
+
   private scene!: THREE.Scene;
   private camera!: THREE.PerspectiveCamera;
   private renderer!: THREE.WebGLRenderer;
@@ -37,7 +42,7 @@ export class ItownsViewer implements AfterViewInit, OnChanges, OnDestroy {
   private selectedMesh: THREE.Mesh | null = null;
   private originalMaterial: THREE.Material | null = null;
   private meshMap: Map<THREE.Mesh, { objectId: string; surfaceType: string }> = new Map();
-  
+
   selectedInfo: { objectId: string; surfaceType: string; position: string } | null = null;
 
   private SURFACE_COLORS: Record<string, number> = {
@@ -133,6 +138,10 @@ export class ItownsViewer implements AfterViewInit, OnChanges, OnDestroy {
   }
 
   private drawCityObjects() {
+    this.objectMeshes.clear();
+    this.originalMatsByObject.clear();
+    this.selectedObjectId = null;
+
     if (!this.cityjson || !this.cityjson.CityObjects || !this.cityjson.vertices) return;
 
     if (this.buildingGroup) {
@@ -176,6 +185,8 @@ export class ItownsViewer implements AfterViewInit, OnChanges, OnDestroy {
               if (type && this.SURFACE_COLORS[type])
                 color = this.SURFACE_COLORS[type];
             }
+
+
             const mesh = new THREE.Mesh(
               geometry,
               new THREE.MeshStandardMaterial({
@@ -185,11 +196,17 @@ export class ItownsViewer implements AfterViewInit, OnChanges, OnDestroy {
                 opacity: 0.95,
               })
             );
+            const surfaceType = surfaces[faceIndex]?.type || 'Default';
+            this.meshMap.set(mesh, { objectId, surfaceType });
+
+            // NEW: track meshes by objectId
+            if (!this.objectMeshes.has(objectId)) this.objectMeshes.set(objectId, []);
+            this.objectMeshes.get(objectId)!.push(mesh);
+
             this.buildingGroup.add(mesh);
             meshCount++;
 
-            const surfaceType = surfaces[faceIndex]?.type || 'Default';
-            this.meshMap.set(mesh, { objectId, surfaceType });
+
           }
           faceIndex++;
         });
@@ -267,27 +284,78 @@ export class ItownsViewer implements AfterViewInit, OnChanges, OnDestroy {
     this.renderer.domElement.addEventListener('mousemove', this.onCanvasMouseMove);
   }
 
-  private onCanvasClick = (event: MouseEvent) => {
-    if (!this.renderer || !this.buildingGroup) return;
+private onCanvasClick = (event: MouseEvent) => {
+  if (!this.renderer || !this.buildingGroup) return;
 
-    const rect = this.renderer.domElement.getBoundingClientRect();
-    this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  const rect = this.renderer.domElement.getBoundingClientRect();
+  this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
-    this.raycaster.setFromCamera(this.mouse, this.camera);
+  this.raycaster.setFromCamera(this.mouse, this.camera);
+  const intersects = this.raycaster.intersectObjects(this.buildingGroup.children, true);
 
-    const intersects = this.raycaster.intersectObjects(
-      this.buildingGroup.children,
-      true
-    );
+  if (intersects.length > 0) {
+    const hit = intersects[0];
+    const intersectedMesh = hit.object as THREE.Mesh;
+    this.selectObjectFromMesh(intersectedMesh, hit.point);
+  } else {
+    this.deselectObject();
+  }
+};
 
-    if (intersects.length > 0) {
-      const intersectedMesh = intersects[0].object as THREE.Mesh;
-      this.selectMesh(intersectedMesh);
-    } else {
-      this.deselectMesh();
-    }
+private selectObjectFromMesh(mesh: THREE.Mesh, hitPoint?: THREE.Vector3) {
+  const info = this.meshMap.get(mesh);
+  if (!info) return;
+
+  if (this.selectedObjectId === info.objectId) return; // already selected
+
+  // Deselect previous selection
+  this.deselectObject();
+
+  // Prepare highlight material for all faces of this object
+  const highlightMat = new THREE.MeshStandardMaterial({
+    color: 0xffff00,
+    emissive: 0xffff00,
+    emissiveIntensity: 0.5,
+    transparent: true,
+    opacity: 0.95,
+    side: THREE.DoubleSide,
+  });
+
+  const meshes = this.objectMeshes.get(info.objectId) || [mesh];
+
+  // Save originals (order aligned)
+  const originals: THREE.Material[] = [];
+  meshes.forEach(m => {
+    originals.push(m.material as THREE.Material);
+    m.material = highlightMat;
+  });
+  this.originalMatsByObject.set(info.objectId, originals);
+  this.selectedObjectId = info.objectId;
+
+  // Update info panel; prefer the hit point if available
+  const p = hitPoint ?? mesh.getWorldPosition(new THREE.Vector3());
+  this.selectedInfo = {
+    objectId: info.objectId,
+    surfaceType: info.surfaceType, // first-hit surface
+    position: `(${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)})`,
   };
+}
+
+private deselectObject() {
+  if (!this.selectedObjectId) return;
+
+  const meshes = this.objectMeshes.get(this.selectedObjectId) || [];
+  const originals = this.originalMatsByObject.get(this.selectedObjectId) || [];
+  for (let i = 0; i < meshes.length; i++) {
+    if (originals[i]) meshes[i].material = originals[i];
+  }
+  this.originalMatsByObject.delete(this.selectedObjectId);
+  this.selectedObjectId = null;
+  this.selectedMesh = null;           // legacy single-mesh selection
+  this.originalMaterial = null;       // legacy single-mesh selection
+  this.selectedInfo = null;
+}
 
   private onCanvasMouseMove = (event: MouseEvent) => {
     if (!this.renderer || !this.buildingGroup) return;
