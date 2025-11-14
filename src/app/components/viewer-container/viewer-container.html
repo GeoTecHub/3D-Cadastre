@@ -1,0 +1,21 @@
+<!-- components/viewer-container/viewer-container.component.html -->
+<div class="viewer-controls">
+  <button (click)="switchViewer('ninja')" [class.active]="activeViewer === 'ninja'">
+    Ninja Viewer
+  </button>
+  <button (click)="switchViewer('itowns')" [class.active]="activeViewer === 'itowns'">
+    iTowns Viewer
+  </button>
+</div>
+
+<div class="viewer-content">
+  <app-ninja-viewer 
+    *ngIf="activeViewer === 'ninja'" 
+    [cityjson]="cityjson">
+  </app-ninja-viewer>
+  
+  <app-itowns-viewer 
+    *ngIf="activeViewer === 'itowns'" 
+    [cityjson]="cityjson">
+  </app-itowns-viewer>
+</div>

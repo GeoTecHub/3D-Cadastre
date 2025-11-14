@@ -3,16 +3,21 @@ import { CityjsonService } from './services/cityjson';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { CityobjectsTree } from './components/cityobjects-tree/cityobjects-tree';
 import { ChangeDetectorRef } from '@angular/core';
-import { ItownsViewer } from './components/itowns-viewer/itowns-viewer';
+
 import { CityJSON } from './services/import-ifc';
 
 @Component({
   selector: 'app-root',
-  imports: [CommonModule, ItownsViewer, CityobjectsTree],
+  imports: [CommonModule,  CityobjectsTree],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
 export class App implements OnInit {
+  currentCityJSON: CityJSON | null = null;
+
+  onCityJSONLoaded(cityjson: CityJSON) {
+    this.currentCityJSON = cityjson;
+  }
   cityjson: any = null;
   fileError: string | null = null;
   viewerKey = Date.now();

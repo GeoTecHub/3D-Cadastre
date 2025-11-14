@@ -311,3 +311,4 @@ export class ThreejsViewer implements OnChanges, OnDestroy, AfterViewInit {
   };
 }
 
+
