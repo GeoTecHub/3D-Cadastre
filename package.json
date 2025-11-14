@@ -20,11 +20,12 @@
     "@angular/router": "^20.0.0",
     "@angular/ssr": "^20.0.1",
     "earcut": "^3.0.1",
-    "itowns": "2.46.0",
     "express": "^5.1.0",
+    "itowns": "2.46.0",
     "rxjs": "~7.8.0",
     "three": "^0.174.0",
-    "tslib": "^2.3.0"
+    "tslib": "^2.3.0",
+    "web-ifc": "^0.0.72"
   },
   "devDependencies": {
     "@angular/build": "^20.0.1",

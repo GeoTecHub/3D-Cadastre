@@ -1,9 +1,10 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, Inject, PLATFORM_ID } from '@angular/core';
 import { CityjsonService } from './services/cityjson';
-import { CommonModule } from '@angular/common';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { CityobjectsTree } from './components/cityobjects-tree/cityobjects-tree';
 import { ChangeDetectorRef } from '@angular/core';
 import { ItownsViewer } from './components/itowns-viewer/itowns-viewer';
+import { CityJSON } from './services/import-ifc';
 
 @Component({
   selector: 'app-root',
@@ -17,13 +18,21 @@ export class App implements OnInit {
   viewerKey = Date.now();
   selectedObjectId: string | null = null;
   private readonly localCityJsonPath = '/lod2_appartment.city.json';
+  private readonly isBrowser: boolean;
 
   constructor(
     private cityjsonService: CityjsonService,
-    private cdr: ChangeDetectorRef
-  ) { }
+    private cdr: ChangeDetectorRef,
+    @Inject(PLATFORM_ID) platformId: object
+  ) {
+    this.isBrowser = isPlatformBrowser(platformId);
+  }
 
   ngOnInit() {
+    if (!this.isBrowser) {
+      return;
+    }
+
     this.cityjsonService.loadCityJSONFromUrl(this.localCityJsonPath)
       .then(data => {
         this.cityjson = data;
@@ -52,5 +61,11 @@ export class App implements OnInit {
 
   onObjectSelected(objId: string) {
     this.selectedObjectId = objId;
+  }
+
+  onCityjsonChange(cityjson: CityJSON) {
+    this.cityjson = cityjson;
+    this.selectedObjectId = null;
+    this.viewerKey = Date.now();
   }
 }
