@@ -49,6 +49,12 @@
                   "maximumError": "12kB"
                 }
               ],
+              "fileReplacements": [
+                {
+                  "replace": "src/environment/environment.ts",
+                  "with": "src/environment/environment.prod.ts"
+                }
+              ],
               "outputHashing": "all"
             },
             "development": {
@@ -68,6 +74,10 @@
             "development": {
               "buildTarget": "three-js:build:development"
             }
+          },
+          "options": {
+            "host": "127.0.0.1",
+            "port": 5175
           },
           "defaultConfiguration": "development"
         },

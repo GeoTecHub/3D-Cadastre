@@ -1,12 +1,1 @@
-<div style="margin: 2rem;">
-  <div *ngIf="fileError" style="color: red; margin-top: 1rem;">{{ fileError }}</div>
-  <div style="margin-top: 1rem;">
-    <app-itowns-viewer
-      [cityjson]="cityjson"
-      (cityjsonChange)="onCityjsonChange($event)"></app-itowns-viewer>
-    <app-cityobjects-tree
-      [cityjson]="cityjson"
-      (selectObject)="onObjectSelected($event)">
-    </app-cityobjects-tree>
-  </div>
-</div>
+<app-viewer-container></app-viewer-container>

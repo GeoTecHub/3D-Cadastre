@@ -2,9 +2,9 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpErrorResponse } from '@angular/common/http';
 import { BehaviorSubject, firstValueFrom, Observable, throwError } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
+import { CityJSON } from './cityjson.model';
+import {environment} from '../../environment/environment';
 
-import { environment } from '../../../environments/environment'; // Correct path to environment
-import { CityJSON } from './cityjson.model'; // Assuming you created the model file
 
 @Injectable({
   providedIn: 'root',
@@ -47,7 +47,7 @@ export class CityjsonService {
   }
 
   /**
-   * Loads CityJSON data from a public URL.
+   * Loads CityJSON data from a public URL.(this is good for fetching the file from saved data)
    * @param url The public URL of the .json file.
    * @returns A promise that resolves when the data is loaded.
    */
@@ -89,4 +89,55 @@ export class CityjsonService {
     console.error(errorMessage);
     return throwError(() => new Error(errorMessage));
   }
+
+   // --- NEW METHOD FOR LOCAL FILE READING ---
+
+  /**
+   * Reads a CityJSON file selected by the user from their computer.
+   * @param file The File object from the <input type="file"> element.
+   * @returns A Promise that resolves on success or rejects on failure.
+   */
+  loadCityJSONFromFile(file: File): Promise<void> {
+    // We wrap the FileReader logic in a Promise.
+    return new Promise((resolve, reject) => {
+      // 1. Basic validation
+      if (!file.type.match('application/json')) {
+        reject(new Error('Invalid file type. Please select a .json file.'));
+        return;
+      }
+
+      // 2. Create a new FileReader instance
+      const reader = new FileReader();
+
+      // 3. Define what happens when the file is successfully read
+      reader.onload = (event) => {
+        try {
+          const fileContent = event.target?.result as string;
+          // 4. Parse the text content as JSON
+          const jsonData: CityJSON = JSON.parse(fileContent);
+          
+          // 5. Update our BehaviorSubject with the new data
+          this._cityjsonData.next(jsonData);
+          console.log('File successfully parsed and loaded.');
+          resolve(); // Resolve the promise to indicate success
+        } catch (error) {
+          // This will catch errors if the file is not valid JSON
+          this._cityjsonData.next(null);
+          console.error('Error parsing JSON from file:', error);
+          reject(new Error('The selected file is not valid JSON.'));
+        }
+      };
+
+      // 6. Define what happens if there's an error reading the file
+      reader.onerror = (error) => {
+        this._cityjsonData.next(null);
+        console.error('Error reading file:', error);
+        reject(new Error('An error occurred while reading the file.'));
+      };
+
+      // 7. Start the reading process. This will trigger either onload or onerror.
+      reader.readAsText(file);
+    });
+  }
+
 }

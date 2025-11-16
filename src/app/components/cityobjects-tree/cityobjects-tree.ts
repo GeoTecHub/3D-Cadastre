@@ -3,9 +3,10 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
 
 @Component({
   selector: 'app-cityobjects-tree',
+  standalone: true,
   imports: [CommonModule],
   templateUrl: './cityobjects-tree.html',
-  styleUrl: './cityobjects-tree.css',
+  styleUrls: ['./cityobjects-tree.css'],
 })
 export class CityobjectsTree {
   @Input() cityjson: any;

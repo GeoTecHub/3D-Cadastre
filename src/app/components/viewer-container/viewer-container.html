@@ -1,21 +1,80 @@
 <!-- components/viewer-container/viewer-container.component.html -->
-<div class="viewer-controls">
-  <button (click)="switchViewer('ninja')" [class.active]="activeViewer === 'ninja'">
-    Ninja Viewer
-  </button>
-  <button (click)="switchViewer('itowns')" [class.active]="activeViewer === 'itowns'">
-    iTowns Viewer
-  </button>
-</div>
+<div class="viewer-shell">
+  <aside class="viewer-sidebar">
+    <div class="sidebar-header">
+      <p class="eyebrow">Data</p>
+      <h2>CityJSON Explorer</h2>
+      <p>Load a file or use the bundled sample to jump right in.</p>
+    </div>
 
-<div class="viewer-content">
-  <app-ninja-viewer 
-    *ngIf="activeViewer === 'ninja'" 
-    [cityjson]="cityjson">
-  </app-ninja-viewer>
-  
-  <app-itowns-viewer 
-    *ngIf="activeViewer === 'itowns'" 
-    [cityjson]="cityjson">
-  </app-itowns-viewer>
+    <label class="file-picker">
+      <input type="file" accept=".json,.city.json" (change)="onFileSelected($event)" />
+      <span>Upload CityJSON</span>
+    </label>
+    <button class="ghost" type="button" (click)="reloadDefaultModel()">Load Sample Model</button>
+
+    <div class="status" *ngIf="isLoading">Loading model…</div>
+    <div class="status error" *ngIf="loadError">{{ loadError }}</div>
+    <div class="status selection" *ngIf="selectedObjectId">
+      Selected: <strong>{{ selectedObjectId }}</strong>
+    </div>
+
+    <div class="tree-wrapper" *ngIf="cityjson; else emptyTree">
+      <app-cityobjects-tree
+        [cityjson]="cityjson"
+        (selectObject)="onTreeSelection($event)">
+      </app-cityobjects-tree>
+    </div>
+    <ng-template #emptyTree>
+      <p class="tree-placeholder">
+        The City Objects tree will appear here after a file is loaded.
+      </p>
+    </ng-template>
+  </aside>
+
+  <section class="viewer-panel">
+    <div class="viewer-toolbar">
+      <div>
+        <p class="eyebrow">Active Viewer</p>
+        <h1>{{ activeViewer === 'ninja' ? 'Ninja' : 'Three.js' }} renderer</h1>
+      </div>
+      <div class="viewer-switch">
+        <button
+          type="button"
+          [class.active]="activeViewer === 'ninja'"
+          (click)="switchViewer('ninja')">
+          Ninja
+        </button>
+        <button
+          type="button"
+          [class.active]="activeViewer === 'threejs'"
+          (click)="switchViewer('threejs')">
+          Three.js
+        </button>
+      </div>
+    </div>
+
+    <div class="viewer-stage">
+      <app-ninja-viewer
+        *ngIf="activeViewer === 'ninja'"
+        [focusObjectId]="selectedObjectId"
+        (objectSelected)="onViewerSelection($event)">
+      </app-ninja-viewer>
+
+      <app-threejs-viewer
+        *ngIf="activeViewer === 'threejs'"
+        [cityjson]="cityjson">
+      </app-threejs-viewer>
+
+      <div class="stage-placeholder" *ngIf="!cityjson && !isLoading">
+        <h3>Awaiting CityJSON</h3>
+        <p>Upload a CityJSON file or load the sample dataset to start exploring.</p>
+      </div>
+
+      <div class="stage-placeholder loading" *ngIf="isLoading">
+        <h3>Preparing scene…</h3>
+        <p>This usually takes only a few seconds.</p>
+      </div>
+    </div>
+  </section>
 </div>

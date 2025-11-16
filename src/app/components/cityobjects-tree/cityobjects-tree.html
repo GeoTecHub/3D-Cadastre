@@ -3,7 +3,8 @@
   <ul>
     <li *ngFor="let entry of getCityObjectEntries()">
       <button (click)="onSelect(entry[0])">
-        {{ entry[0] }} <span style="color: #888;">({{ getObjectType(entry[1]) }})</span>
+        {{ entry[0] }}
+        <span class="object-type">({{ getObjectType(entry[1]) }})</span>
       </button>
     </li>
   </ul>

@@ -15,9 +15,9 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 @Component({
   selector: 'app-threejs-viewer',
-  imports: [],
+  standalone: true,
   templateUrl: './threejs-viewer.html',
-  styleUrl: './threejs-viewer.css'
+  styleUrls: ['./threejs-viewer.css']
 })
 export class ThreejsViewer implements OnChanges, OnDestroy, AfterViewInit {
   @Input() cityjson: any;
