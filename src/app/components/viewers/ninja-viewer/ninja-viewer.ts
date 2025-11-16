@@ -5,31 +5,33 @@ import { Component, ViewChild, ElementRef, AfterViewInit, OnDestroy, Output, Eve
 import * as THREE from 'three';
 // @ts-ignore: three/examples/jsm/... has no bundled type declarations in this project
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { Subscription } from 'rxjs'; // Import Subscription
+import { Subscription } from 'rxjs';
 
 // Import both of our services
 import { NinjaLoader } from 'src/app/services/ninja-loader';
 import { CityjsonService } from 'src/app/services/cityjson';
 
-// Use the correct class name
-
 @Component({
   selector: 'app-ninja-viewer',
   standalone: true,
   templateUrl: './ninja-viewer.html',
-  styleUrls: ['./ninja-viewer.css'] // Note: styleUrl -> styleUrls (for arrays)
+  styleUrls: ['./ninja-viewer.css']
 })
 export class NinjaViewer implements AfterViewInit, OnDestroy {
-  // We no longer need the @Input() for cityjson
   @Output() objectSelected = new EventEmitter<string>();
+  
   @Input() set focusObjectId(id: string | null) {
     if (!id) {
       this.clearSelection(true);
       return;
     }
-    if (this.selectedMesh?.userData && this.selectedMesh.userData['objectId'] === id) {
-      return;
+    
+    // Check if already selected using findObjectId
+    const currentId = this.selectedMesh ? this.findObjectId(this.selectedMesh) : null;
+    if (currentId === id) {
+      return; // Already selected
     }
+    
     const mesh = this.findMeshById(id);
     if (mesh) {
       this.applySelection(mesh, false);
@@ -47,15 +49,23 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
   private selectedMesh: THREE.Mesh | null = null;
-  private readonly highlightColor = new THREE.Color(0x4f46e5);
+  
+  // Enhanced highlight colors
+  private readonly highlightColor = new THREE.Color(0x4f46e5); // Indigo
+  private readonly hoverColor = new THREE.Color(0x818cf8); // Light indigo
+  
   private readonly isBrowser: boolean;
   private pointerIsDown = false;
   private pointerDownPos = new THREE.Vector2();
   
-  // To hold our subscription so we can unsubscribe later
+  // For hover effect
+  private hoveredMesh: THREE.Mesh | null = null;
+  
+  // Outline for better visual feedback (now can be multiple)
+  private outlineMeshes: THREE.LineSegments[] = [];
+  
   private dataSubscription: Subscription | null = null;
 
-  // Inject both services now
   constructor(
     private ninjaLoader: NinjaLoader,
     private cityjsonService: CityjsonService,
@@ -68,38 +78,37 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     if (!this.isBrowser) {
       return;
     }
-    // 1. Initialize the 3D scene
+    
     this.initScene();
     
-    // 2. Subscribe to data changes from the service
     this.dataSubscription = this.cityjsonService.cityjsonData$.subscribe(cityjsonData => {
-      // This block will run every time new data is loaded
       if (cityjsonData) {
         this.loadModel();
       } else {
-        this.clearModel(); // If data is null, clear the scene
+        this.clearModel();
       }
     });
   }
 
   ngOnDestroy(): void {
-    // Unsubscribe to prevent memory leaks
     this.dataSubscription?.unsubscribe();
 
     if (this.isBrowser) {
       window.removeEventListener('resize', this.handleResize);
       window.removeEventListener('pointerup', this.handlePointerUp);
       window.removeEventListener('pointercancel', this.handlePointerCancel);
+      window.removeEventListener('pointermove', this.handlePointerMove);
     }
     this.renderer?.domElement.removeEventListener('pointerdown', this.handlePointerDown);
     this.controls?.dispose();
 
-    // The rest of your excellent cleanup
     if (this.animationId) cancelAnimationFrame(this.animationId);
     this.renderer?.dispose();
+    
+    // Clean up outline
+    this.removeOutline();
   }
 
-  // initScene remains the same, it's perfect.
   private initScene(): void {
     if (!this.container || !this.isBrowser) {
       return;
@@ -122,9 +131,11 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     host.innerHTML = '';
     host.appendChild(this.renderer.domElement);
     this.renderer.domElement.style.touchAction = 'none';
+    this.renderer.domElement.style.cursor = 'pointer';
     this.renderer.domElement.addEventListener('pointerdown', this.handlePointerDown);
     window.addEventListener('pointerup', this.handlePointerUp);
     window.addEventListener('pointercancel', this.handlePointerCancel);
+    window.addEventListener('pointermove', this.handlePointerMove);
 
     const ambient = new THREE.AmbientLight(0xffffff, 0.9);
     const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -150,14 +161,13 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
       this.cityModel = null;
     }
     this.clearSelection(true);
+    this.clearHover();
   }
 
   private loadModel(): void {
-    // This method is much simpler now!
     this.clearModel();
     this.clearSelection(true);
 
-    // The loader gets data from the service by itself
     this.cityModel = this.ninjaLoader.createSceneGroup();
 
     if (this.cityModel) {
@@ -167,7 +177,6 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     }
   }
 
-  // fitCameraToModel remains the same, it's perfect.
   private fitCameraToModel(): void {
     if (!this.cityModel || !this.camera || !this.controls) {
       return;
@@ -198,7 +207,6 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     this.controls.update();
   }
 
-  // animate remains the same, it's perfect.
   private animate = (): void => {
     this.animationId = requestAnimationFrame(this.animate);
     if (!this.renderer || !this.scene || !this.camera) {
@@ -280,6 +288,35 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     this.pointerIsDown = false;
   };
 
+  private handlePointerMove = (event: PointerEvent): void => {
+    if (!this.cityModel || !this.camera || !this.renderer || this.pointerIsDown) {
+      return;
+    }
+
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+    this.cityModel.updateWorldMatrix(true, true);
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+    const intersections = this.raycaster.intersectObject(this.cityModel, true);
+
+    if (!intersections.length) {
+      this.clearHover();
+      return;
+    }
+
+    const mesh = intersections[0].object as THREE.Mesh;
+    
+    // Don't hover if it's the selected mesh
+    if (this.selectedMesh?.uuid === mesh.uuid) {
+      this.clearHover();
+      return;
+    }
+
+    this.applyHover(mesh);
+  };
+
   private pickObject(event: PointerEvent): void {
     if (!this.cityModel || !this.camera || !this.renderer) {
       return;
@@ -306,37 +343,170 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
       return;
     }
 
-    if (this.selectedMesh?.uuid === mesh.uuid) {
-      return;
+    // Find the current selected object ID (if any)
+    const currentSelectedId = this.selectedMesh ? this.findObjectId(this.selectedMesh) : null;
+    if (currentSelectedId === objectId) {
+      return; // Same CityJSON object already selected
     }
 
     this.clearSelection(true);
+    this.clearHover(); // Clear any hover effect
 
-    const material = this.getMeshMaterial(mesh);
-    if (!material) {
+    // Find ALL meshes that belong to this CityJSON object
+    const meshesInObject = this.findAllMeshesByObjectId(objectId);
+    
+    if (meshesInObject.length === 0) {
       return;
     }
 
-    mesh.userData['__originalColor'] = material.color.clone();
-    material.color.copy(this.highlightColor);
-    this.selectedMesh = mesh;
+    // Highlight all meshes belonging to this object
+    meshesInObject.forEach(m => {
+      const material = this.getMeshMaterial(m);
+      if (!material) {
+        return;
+      }
+
+      // Store original color and apply highlight
+      m.userData['__originalColor'] = material.color.clone();
+      m.userData['objectId'] = objectId; // Store objectId on mesh itself
+      material.color.copy(this.highlightColor);
+      
+      // Make it slightly emissive for better visibility
+      if (material.emissive) {
+        m.userData['__originalEmissive'] = material.emissive.clone();
+        material.emissive.copy(this.highlightColor);
+        material.emissiveIntensity = 0.3;
+      }
+    });
+    
+    // Store the first mesh as reference (or you could store all meshes)
+    this.selectedMesh = meshesInObject[0];
+    
+    // Add outlines to all meshes in the object
+    this.createOutlineForMeshes(meshesInObject);
+    
     if (emit) {
       this.objectSelected.emit(objectId);
     }
   }
 
   private clearSelection(silent = false): void {
-    if (this.selectedMesh) {
-      const material = this.getMeshMaterial(this.selectedMesh);
-      const originalColor = this.selectedMesh.userData['__originalColor'] as THREE.Color | undefined;
-      if (material && originalColor) {
-        material.color.copy(originalColor);
+    if (!this.selectedMesh) {
+      if (!silent) {
+        this.objectSelected.emit('');
       }
-      this.selectedMesh = null;
+      return;
     }
+
+    // Get the objectId and find all meshes
+    const objectId = this.findObjectId(this.selectedMesh);
+    if (objectId) {
+      const meshesInObject = this.findAllMeshesByObjectId(objectId);
+      
+      // Restore original colors for all meshes in the object
+      meshesInObject.forEach(mesh => {
+        const material = this.getMeshMaterial(mesh);
+        const originalColor = mesh.userData['__originalColor'] as THREE.Color | undefined;
+        const originalEmissive = mesh.userData['__originalEmissive'] as THREE.Color | undefined;
+        
+        if (material && originalColor) {
+          material.color.copy(originalColor);
+        }
+        
+        if (material && originalEmissive && material.emissive) {
+          material.emissive.copy(originalEmissive);
+          material.emissiveIntensity = 0;
+        }
+      });
+    }
+    
+    this.selectedMesh = null;
+    this.removeOutline();
+    
     if (!silent) {
       this.objectSelected.emit('');
     }
+  }
+
+  private applyHover(mesh: THREE.Mesh): void {
+    if (this.hoveredMesh?.uuid === mesh.uuid) {
+      return;
+    }
+
+    this.clearHover();
+
+    const material = this.getMeshMaterial(mesh);
+    if (!material) {
+      return;
+    }
+
+    mesh.userData['__hoverOriginalColor'] = material.color.clone();
+    material.color.copy(this.hoverColor);
+    this.hoveredMesh = mesh;
+  }
+
+  private clearHover(): void {
+    if (this.hoveredMesh) {
+      const material = this.getMeshMaterial(this.hoveredMesh);
+      const originalColor = this.hoveredMesh.userData['__hoverOriginalColor'] as THREE.Color | undefined;
+      
+      if (material && originalColor) {
+        material.color.copy(originalColor);
+      }
+      
+      this.hoveredMesh = null;
+    }
+  }
+
+  private createOutlineForMeshes(meshes: THREE.Mesh[]): void {
+    this.removeOutline();
+
+    meshes.forEach(mesh => {
+      const geometry = mesh.geometry;
+      if (!geometry) {
+        return;
+      }
+
+      // Create edges geometry for outline
+      const edges = new THREE.EdgesGeometry(geometry, 15); // threshold angle in degrees
+      const lineMaterial = new THREE.LineBasicMaterial({ 
+        color: 0xffffff,
+        linewidth: 2,
+        transparent: true,
+        opacity: 0.8
+      });
+      
+      const outlineMesh = new THREE.LineSegments(edges, lineMaterial);
+      
+      // Copy transform from the mesh
+      outlineMesh.position.copy(mesh.position);
+      outlineMesh.rotation.copy(mesh.rotation);
+      outlineMesh.scale.copy(mesh.scale);
+      
+      // Add to parent so it moves with the mesh
+      if (mesh.parent) {
+        mesh.parent.add(outlineMesh);
+      } else {
+        this.scene.add(outlineMesh);
+      }
+      
+      this.outlineMeshes.push(outlineMesh);
+    });
+  }
+
+  private removeOutline(): void {
+    this.outlineMeshes.forEach(outlineMesh => {
+      if (outlineMesh.parent) {
+        outlineMesh.parent.remove(outlineMesh);
+      }
+      outlineMesh.geometry.dispose();
+      if (Array.isArray(outlineMesh.material)) {
+        outlineMesh.material.forEach(mat => mat.dispose());
+      } else {
+        outlineMesh.material.dispose();
+      }
+    });
+    this.outlineMeshes = [];
   }
 
   private getMeshMaterial(mesh: THREE.Mesh): THREE.MeshStandardMaterial | null {
@@ -371,5 +541,31 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
       }
     });
     return target;
+  }
+
+  /**
+   * Find all meshes that belong to the same CityJSON object
+   * This includes walls, roofs, windows, etc. that share the same objectId
+   */
+  private findAllMeshesByObjectId(objectId: string): THREE.Mesh[] {
+    if (!this.cityModel) {
+      return [];
+    }
+    
+    const meshes: THREE.Mesh[] = [];
+    
+    this.cityModel.traverse(obj => {
+      if (!(obj instanceof THREE.Mesh)) {
+        return;
+      }
+      
+      // Check if this mesh or any of its parents has the matching objectId
+      const meshObjectId = this.findObjectId(obj);
+      if (meshObjectId === objectId) {
+        meshes.push(obj);
+      }
+    });
+    
+    return meshes;
   }
 }
