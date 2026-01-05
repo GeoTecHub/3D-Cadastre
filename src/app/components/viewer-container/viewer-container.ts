@@ -60,20 +60,15 @@ export class ViewerContainer implements OnInit, OnDestroy {
     this.loadError = null;
     const input = event.target as HTMLInputElement;
 
-    if (!input.files || !input.files.length) {
+    const file = input.files?.[0];
+    if (!file) {
       return;
     }
 
-    const file = input.files[0];
-    this.isLoading = true;
-
     try {
-      await this.cityjsonService.loadCityJSONFromFile(file);
-    } catch (error) {
-      this.isLoading = false;
-      this.loadError = error instanceof Error ? error.message : 'Could not read the selected file.';
+      await this._loadData(this.cityjsonService.loadCityJSONFromFile(file), 'Could not read the selected file.');
     } finally {
-      input.value = '';
+      input.value = ''; // Reset file input to allow re-selecting the same file
     }
   }
 
@@ -85,28 +80,32 @@ export class ViewerContainer implements OnInit, OnDestroy {
     if (!this.isBrowser) {
       return;
     }
-    await this.loadDefaultModel();
+    await this.loadDefaultModel(true);
   }
 
-  onTreeSelection(objectId: string): void {
+  updateSelectedObject(objectId: string | null): void {
     this.selectedObjectId = objectId || null;
   }
 
-  onViewerSelection(objectId: string): void {
-    this.selectedObjectId = objectId || null;
-  }
-
-  private async loadDefaultModel(): Promise<void> {
+  private async loadDefaultModel(forceReload = false): Promise<void> {
     if (!this.isBrowser) {
       return;
     }
+    // Avoid reloading if data is already present, unless forced
+    if (this.cityjson && !forceReload) {
+      return;
+    }
+    await this._loadData(this.cityjsonService.loadCityJSONFromUrl(this.defaultModelUrl), 'Could not load the sample model.');
+  }
+
+  private async _loadData(loader: Promise<void>, errorMessage: string): Promise<void> {
     this.isLoading = true;
     this.loadError = null;
     try {
-      await this.cityjsonService.loadCityJSONFromUrl(this.defaultModelUrl);
-    } catch {
+      await loader;
+    } catch (error) {
       this.isLoading = false;
-      this.loadError = 'Could not load the sample model.';
+      this.loadError = error instanceof Error ? error.message : errorMessage;
     }
   }
 }

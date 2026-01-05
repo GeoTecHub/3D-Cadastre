@@ -23,7 +23,8 @@ li button {
   transition: border-color 0.2s ease, background 0.2s ease;
 }
 
-li button:hover {
+li button:hover,
+li button:focus-visible {
   border-color: rgba(196, 181, 253, 0.9);
   background: rgba(124, 58, 237, 0.25);
 }
@@ -35,4 +36,10 @@ li button span {
 
 .object-type {
   margin-left: 0.35rem;
+}
+
+.empty-message {
+  color: #94a3b8;
+  padding: 0.45rem 0.75rem;
+  font-style: italic;
 }
