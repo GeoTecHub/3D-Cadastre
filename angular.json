@@ -19,6 +19,11 @@
               {
                 "glob": "**/*",
                 "input": "public"
+              },
+              {
+                "glob": "web-ifc.wasm",
+                "input": "node_modules/web-ifc",
+                "output": "assets"
               }
             ],
             "styles": [
@@ -35,13 +40,19 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "500kB",
-                  "maximumError": "1MB"
+                  "maximumWarning": "4MB",
+                  "maximumError": "6MB"
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "4kB",
-                  "maximumError": "8kB"
+                  "maximumWarning": "8kB",
+                  "maximumError": "12kB"
+                }
+              ],
+              "fileReplacements": [
+                {
+                  "replace": "src/environment/environment.ts",
+                  "with": "src/environment/environment.prod.ts"
                 }
               ],
               "outputHashing": "all"
@@ -64,6 +75,10 @@
               "buildTarget": "three-js:build:development"
             }
           },
+          "options": {
+            "host": "127.0.0.1",
+            "port": 5175
+          },
           "defaultConfiguration": "development"
         },
         "extract-i18n": {
@@ -77,6 +92,11 @@
               {
                 "glob": "**/*",
                 "input": "public"
+              },
+              {
+                "glob": "web-ifc.wasm",
+                "input": "node_modules/web-ifc",
+                "output": "assets"
               }
             ],
             "styles": [

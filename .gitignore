@@ -42,6 +42,3 @@ testem.log
 Thumbs.db
 
 env.ts
-response-cityjson.json
-response.json
-twobuildings.city.json

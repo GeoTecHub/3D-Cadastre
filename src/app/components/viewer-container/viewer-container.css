@@ -1,0 +1,191 @@
+:host {
+  display: block;
+  padding: 2.5rem;
+  min-height: 100vh;
+  background: radial-gradient(circle at top, #101631, #05060f);
+  color: #f8fafc;
+  box-sizing: border-box;
+}
+
+.viewer-shell {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) 1fr;
+  gap: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.viewer-sidebar {
+  background: rgba(15, 23, 42, 0.7);
+  border-radius: 24px;
+  padding: 1.5rem;
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.sidebar-header h2 {
+  margin: 0.2rem 0;
+  font-size: 1.5rem;
+}
+
+.sidebar-header p {
+  margin: 0;
+  color: #cbd5f5;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.file-picker {
+  position: relative;
+  display: block;
+  padding: 0.9rem 1.2rem;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  text-align: center;
+  font-weight: 600;
+  cursor: pointer;
+  color: #fff;
+}
+
+.file-picker input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.ghost {
+  border: 1px dashed rgba(148, 163, 184, 0.6);
+  background: transparent;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  color: #e2e8f0;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.ghost:hover {
+  border-color: rgba(245, 245, 255, 0.9);
+}
+
+.status {
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  background: rgba(15, 118, 110, 0.2);
+  color: #5eead4;
+}
+
+.status.error {
+  background: rgba(244, 63, 94, 0.2);
+  color: #fda4af;
+}
+
+.status.selection {
+  background: rgba(79, 70, 229, 0.2);
+  color: #c7d2fe;
+}
+
+.tree-wrapper {
+  max-height: 50vh;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+.tree-placeholder {
+  font-size: 0.9rem;
+  color: #cbd5f5;
+  margin: 0;
+}
+
+.viewer-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.viewer-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.viewer-toolbar h1 {
+  margin: 0.2rem 0 0;
+  font-size: 2rem;
+}
+
+.viewer-switch {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 0.25rem;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.viewer-switch button {
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  padding: 0.6rem 1.5rem;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.viewer-switch button.active {
+  background: linear-gradient(120deg, #4f46e5, #7c3aed);
+  color: #fff;
+}
+
+.viewer-stage {
+  position: relative;
+  min-height: 520px;
+}
+
+.viewer-stage app-ninja-viewer,
+.viewer-stage app-threejs-viewer {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.stage-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border-radius: 24px;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px dashed rgba(148, 163, 184, 0.3);
+  padding: 2rem;
+}
+
+.stage-placeholder.loading {
+  border-style: solid;
+  border-color: rgba(124, 58, 237, 0.4);
+}
+
+@media (max-width: 1024px) {
+  :host {
+    padding: 1.5rem;
+  }
+  .viewer-shell {
+    grid-template-columns: 1fr;
+  }
+  .viewer-stage {
+    min-height: 420px;
+  }
+}

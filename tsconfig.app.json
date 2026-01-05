@@ -6,7 +6,13 @@
     "outDir": "./out-tsc/app",
     "types": [
       "node"
-    ]
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@itowns/geographic": [
+        "node_modules/@itowns/geographic/lib/Main"
+      ]
+    }
   },
   "include": [
     "src/**/*.ts"
