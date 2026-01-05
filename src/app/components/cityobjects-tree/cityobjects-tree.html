@@ -1,16 +1,24 @@
 <h3>City Objects</h3>
-<div *ngIf="cityjson">
-  <ul *ngIf="hasCityObjects; else noObjects">
-    <li *ngFor="let entry of cityObjectEntries; trackBy: trackByObjectId">
-      <button (click)="onSelect(entry.id)">
-        {{ entry.id }}
-        <span class="object-type">({{ getObjectType(entry.object) }})</span>
-      </button>
-    </li>
-  </ul>
-  <ng-template #noObjects>
-    <p class="empty-message">
-      No city objects found.
-    </p>
-  </ng-template>
-</div>
+
+@if (cityjson()) {
+  <div class="tree-container">
+    
+    @if (hasCityObjects()) {
+      <ul>
+        @for (entry of cityObjectEntries(); track entry.id) {
+          <li>
+            <button (click)="onSelect(entry.id)" type="button">
+              <span class="object-name">{{ entry.id }}</span>
+              <span class="object-type-badge">{{ getObjectType(entry.object) }}</span>
+            </button>
+          </li>
+        }
+      </ul>
+    } @else {
+      <p class="empty-message">
+        No city objects found.
+      </p>
+    }
+
+  </div>
+}

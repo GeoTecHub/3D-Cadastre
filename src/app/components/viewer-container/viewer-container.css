@@ -4,6 +4,12 @@
   min-height: 100vh;
   background: radial-gradient(circle at top, #101631, #05060f);
   color: #f8fafc;
+  /* Ideally, add this to styles.css globally, but keeping it here is safe */
+  box-sizing: border-box; 
+}
+
+/* Ensure child elements also use border-box if global styles don't set it */
+:host * {
   box-sizing: border-box;
 }
 
@@ -55,6 +61,11 @@
   font-weight: 600;
   cursor: pointer;
   color: #fff;
+  transition: transform 0.1s ease;
+}
+
+.file-picker:active {
+  transform: scale(0.98);
 }
 
 .file-picker input {
@@ -72,10 +83,12 @@
   color: #e2e8f0;
   font-weight: 500;
   cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .ghost:hover {
   border-color: rgba(245, 245, 255, 0.9);
+  background: rgba(148, 163, 184, 0.1);
 }
 
 .status {
@@ -83,6 +96,7 @@
   border-radius: 12px;
   background: rgba(15, 118, 110, 0.2);
   color: #5eead4;
+  font-size: 0.9rem;
 }
 
 .status.error {
@@ -101,10 +115,25 @@
   padding-right: 0.5rem;
 }
 
+/* Custom Scrollbar for tree */
+.tree-wrapper::-webkit-scrollbar {
+  width: 6px;
+}
+.tree-wrapper::-webkit-scrollbar-track {
+  background: rgba(0,0,0,0.1);
+  border-radius: 3px;
+}
+.tree-wrapper::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 3px;
+}
+
 .tree-placeholder {
   font-size: 0.9rem;
   color: #cbd5f5;
   margin: 0;
+  font-style: italic;
+  opacity: 0.8;
 }
 
 .viewer-panel {
@@ -122,6 +151,8 @@
 .viewer-toolbar h1 {
   margin: 0.2rem 0 0;
   font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .viewer-switch {
@@ -140,23 +171,33 @@
   border-radius: 999px;
   font-weight: 600;
   cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.viewer-switch button:hover {
+  color: #e2e8f0;
 }
 
 .viewer-switch button.active {
   background: linear-gradient(120deg, #4f46e5, #7c3aed);
   color: #fff;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
 }
 
+/* --- UPDATED VIEWER STAGE --- */
 .viewer-stage {
   position: relative;
   min-height: 520px;
+  /* Use Flexbox to force children to fill height */
+  display: flex;
+  flex-direction: column;
 }
 
 .viewer-stage app-ninja-viewer,
 .viewer-stage app-threejs-viewer {
   display: block;
   width: 100%;
-  height: 100%;
+  flex: 1; /* Fills remaining space */
 }
 
 .stage-placeholder {
@@ -171,11 +212,24 @@
   background: rgba(15, 23, 42, 0.7);
   border: 1px dashed rgba(148, 163, 184, 0.3);
   padding: 2rem;
+  backdrop-filter: blur(10px);
 }
 
 .stage-placeholder.loading {
   border-style: solid;
   border-color: rgba(124, 58, 237, 0.4);
+}
+
+.stage-placeholder h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.5rem;
+  color: #e2e8f0;
+}
+
+.stage-placeholder p {
+  color: #94a3b8;
+  margin: 0;
+  max-width: 300px;
 }
 
 @media (max-width: 1024px) {

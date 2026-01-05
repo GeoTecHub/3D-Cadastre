@@ -1,111 +1,102 @@
-// components/viewer-container/viewer-container.component.ts
+import { Component, Inject, PLATFORM_ID, signal, effect,inject } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
-import { Component, Inject, OnDestroy, OnInit, PLATFORM_ID } from '@angular/core';
-import { Subscription } from 'rxjs';
+import { toSignal } from '@angular/core/rxjs-interop'; // 👈 Vital for Angular 20
 import { CityjsonService } from '../../services/cityjson';
-import { CityJSON } from '../../services/cityjson.model';
 import { CityobjectsTree } from '../cityobjects-tree/cityobjects-tree';
 import { NinjaViewer } from '../viewers/ninja-viewer/ninja-viewer';
-import { ThreejsViewer } from '../viewers/threejs-viewer/threejs-viewer';
 
 type ViewerType = 'ninja' | 'threejs';
 
 @Component({
   selector: 'app-viewer-container',
   standalone: true,
-  imports: [CommonModule, CityobjectsTree, NinjaViewer, ThreejsViewer],
+  imports: [CommonModule, CityobjectsTree, NinjaViewer], // Add ThreejsViewer here if needed
   templateUrl: './viewer-container.html',
   styleUrls: ['./viewer-container.css']
 })
-export class ViewerContainer implements OnInit, OnDestroy {
-  activeViewer: ViewerType = 'ninja';
-  cityjson: CityJSON | null = null;
-  loadError: string | null = null;
-  isLoading = false;
-  selectedObjectId: string | null = null;
+export class ViewerContainer {
+  private readonly cityjsonService = inject(CityjsonService);
+  // 1. Convert Observable to Signal. 'requireSync' is false by default, so it starts undefined.
+  // This automatically handles subscription/unsubscription.
+  cityjson = toSignal(this.cityjsonService.cityjsonData$);
+
+  // 2. Use Signals for local state
+  activeViewer = signal<ViewerType>('ninja');
+  isLoading = signal(false);
+  loadError = signal<string | null>(null);
+  selectedObjectId = signal<string | null>(null);
 
   private readonly defaultModelUrl = '/lod2_appartment.city.json';
   private readonly isBrowser: boolean;
-  private dataSubscription?: Subscription;
 
   constructor(
-    private readonly cityjsonService: CityjsonService,
+    
     @Inject(PLATFORM_ID) platformId: object
   ) {
     this.isBrowser = isPlatformBrowser(platformId);
-  }
 
-  ngOnInit(): void {
-    this.dataSubscription = this.cityjsonService.cityjsonData$.subscribe(data => {
-      this.cityjson = data;
-      this.isLoading = false;
-      if (!data) {
-        this.selectedObjectId = null;
-      }
-    });
-
+    // Load default model on startup (browser only)
     if (this.isBrowser) {
       this.loadDefaultModel();
     }
+    
+    // Automatic Reset: If cityjson becomes null, clear selection
+    effect(() => {
+        if (!this.cityjson()) {
+            this.selectedObjectId.set(null);
+        }
+    });
   }
 
-  ngOnDestroy(): void {
-    this.dataSubscription?.unsubscribe();
-  }
+  // No ngOnInit or ngOnDestroy needed!
 
   async onFileSelected(event: Event): Promise<void> {
-    if (!this.isBrowser) {
-      return;
-    }
-    this.loadError = null;
+    if (!this.isBrowser) return;
+
+    this.loadError.set(null);
     const input = event.target as HTMLInputElement;
 
-    const file = input.files?.[0];
-    if (!file) {
-      return;
-    }
+    if (!input.files?.length) return;
+
+    const file = input.files[0];
+    this.isLoading.set(true);
 
     try {
-      await this._loadData(this.cityjsonService.loadCityJSONFromFile(file), 'Could not read the selected file.');
+      await this.cityjsonService.loadCityJSONFromFile(file);
+      // Logic for success is handled by the cityjson signal updating automatically
+    } catch (error) {
+      this.loadError.set(error instanceof Error ? error.message : 'Could not read file.');
     } finally {
-      input.value = ''; // Reset file input to allow re-selecting the same file
+      this.isLoading.set(false);
+      input.value = '';
     }
   }
 
   switchViewer(type: ViewerType): void {
-    this.activeViewer = type;
+    this.activeViewer.set(type);
   }
 
   async reloadDefaultModel(): Promise<void> {
-    if (!this.isBrowser) {
-      return;
-    }
-    await this.loadDefaultModel(true);
+    await this.loadDefaultModel();
   }
 
-  updateSelectedObject(objectId: string | null): void {
-    this.selectedObjectId = objectId || null;
+  // Update signal value
+  onSelectionChange(objectId: string): void {
+    // If empty string comes in, treat as null
+    this.selectedObjectId.set(objectId || null);
   }
 
-  private async loadDefaultModel(forceReload = false): Promise<void> {
-    if (!this.isBrowser) {
-      return;
-    }
-    // Avoid reloading if data is already present, unless forced
-    if (this.cityjson && !forceReload) {
-      return;
-    }
-    await this._loadData(this.cityjsonService.loadCityJSONFromUrl(this.defaultModelUrl), 'Could not load the sample model.');
-  }
-
-  private async _loadData(loader: Promise<void>, errorMessage: string): Promise<void> {
-    this.isLoading = true;
-    this.loadError = null;
+  private async loadDefaultModel(): Promise<void> {
+    if (!this.isBrowser) return;
+    
+    this.isLoading.set(true);
+    this.loadError.set(null);
     try {
-      await loader;
-    } catch (error) {
-      this.isLoading = false;
-      this.loadError = error instanceof Error ? error.message : errorMessage;
+      await this.cityjsonService.loadCityJSONFromUrl(this.defaultModelUrl);
+    } catch {
+      this.loadError.set('Could not load the sample model.');
+    } finally {
+        this.isLoading.set(false);
     }
   }
 }

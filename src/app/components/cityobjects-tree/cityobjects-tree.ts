@@ -1,11 +1,6 @@
+import { Component, input, computed, output } from '@angular/core'; // Note new imports
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, Output, OnChanges, SimpleChanges } from '@angular/core';
 import { CityJSON } from '../../services/cityjson.model';
-
-interface CityObjectEntry {
-  id: string;
-  object: any;
-}
 
 @Component({
   selector: 'app-cityobjects-tree',
@@ -14,25 +9,42 @@ interface CityObjectEntry {
   templateUrl: './cityobjects-tree.html',
   styleUrls: ['./cityobjects-tree.css'],
 })
-export class CityobjectsTree implements OnChanges {
-  @Input() cityjson: CityJSON | null = null;
-  @Output() selectObject = new EventEmitter<string>();
+export class CityobjectsTree {
+  // 1. Replace @Input with input()
+  cityjson = input<CityJSON | null>(null);
 
-  cityObjectEntries: CityObjectEntry[] = [];
-  hasCityObjects = false;
+  // 2. Replace @Output with output()
+  selectObject = output<string>();
 
-  ngOnChanges(changes: SimpleChanges): void {
-    if (changes['cityjson']) {
-      const currentCityJson = changes['cityjson'].currentValue;
-      const cityObjects = currentCityJson?.CityObjects;
+  // 3. Use computed() instead of ngOnChanges
+  // This automatically updates whenever 'cityjson' changes.
+cityObjectEntries = computed(() => {
+    const data = this.cityjson();
+    if (!data || !data.CityObjects) return [];
+    
+    return Object.entries(data.CityObjects)
+      .map(([id, obj]) => ({ id, object: obj }))
+      .sort((a, b) => {
+          // 1. Get the type (e.g., "Building", "Road", "TINRelief")
+          const typeA = a.object.type || 'Unknown';
+          const typeB = b.object.type || 'Unknown';
+          
+          // 2. Primary Sort: Compare Types
+          // This ensures "Bridge" comes before "Building", and "Road" comes after "PlantCover".
+          const typeComparison = typeA.localeCompare(typeB);
+          
+          // 3. If types are different, use that order to separate the groups
+          if (typeComparison !== 0) {
+            return typeComparison;
+          }
 
-      this.cityObjectEntries = cityObjects
-        ? Object.keys(cityObjects).map(id => ({ id: id, object: cityObjects[id] }))
-        : [];
+          // 4. Secondary Sort: If types are the same (e.g. both are "Building"), sort by ID
+          return a.id.localeCompare(b.id);
+      }); 
+  });
 
-      this.hasCityObjects = this.cityObjectEntries.length > 0;
-    }
-  }
+  // 4. Helper for the template to check length
+  hasCityObjects = computed(() => this.cityObjectEntries().length > 0);
 
   getObjectType(obj: any): string {
     return obj.type || 'Unknown';
@@ -40,9 +52,5 @@ export class CityobjectsTree implements OnChanges {
 
   onSelect(objId: string) {
     this.selectObject.emit(objId);
-  }
-
-  trackByObjectId(index: number, entry: CityObjectEntry): string {
-    return entry.id;
   }
 }

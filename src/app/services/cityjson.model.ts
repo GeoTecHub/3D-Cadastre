@@ -22,3 +22,9 @@ export interface CityJSON {
   // The file is still valid even if 'transform' is missing.
   transform?: Transform;
 }
+
+export interface CityObject {
+  type: string;
+  attributes?: Record<string, any>;
+  geometry?: any[]; // specific geometry types can be defined later
+}
