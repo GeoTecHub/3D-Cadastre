@@ -167,7 +167,7 @@ private clearModel(): void {
 
  private loadModel(): void {
     this.clearModel();
-    this.cityModel = this.ninjaLoader.createSceneGroup();
+    this.cityModel = this.ninjaLoader.createSceneGroup({ colorBySemantic: true });
 
     if (this.cityModel) {
       // Build the Fast Lookup Map
@@ -462,7 +462,7 @@ private clearModel(): void {
       }
 
       // Create edges geometry for outline
-      const edges = new THREE.EdgesGeometry(geometry, 15); // threshold angle in degrees
+      const edges = new THREE.EdgesGeometry(geometry, 80); // threshold angle in degrees
       const lineMaterial = new THREE.LineBasicMaterial({ 
         color: 0xffffff,
         linewidth: 2,

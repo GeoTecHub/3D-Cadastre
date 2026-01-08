@@ -44,7 +44,13 @@ export class NinjaLoader {
     const vertices = this.getTransformedVertices(cityjsonData);
     
     // Load city objects from the correct data object
-    Object.entries(cityjsonData.CityObjects).forEach(([id, obj]) => {
+   Object.entries(cityjsonData.CityObjects).forEach(([id, obj]) => {
+      // 🛑 FIX: If an object has children, it's likely a container/envelope.
+      // We skip rendering it so we can see the detailed parts inside.
+      if (obj.children && obj.children.length > 0) {
+        return; 
+      }
+
       const meshes = this.createObjectMeshes(id, obj, vertices, options);
       meshes.forEach(mesh => group.add(mesh));
     });
@@ -67,9 +73,9 @@ export class NinjaLoader {
     });
   }
   
-  private createObjectMeshes(
+ private createObjectMeshes(
     objectId: string,
-    cityObject: any, // We can create a CityObject interface later for better typing
+    cityObject: any,
     vertices: THREE.Vector3[],
     options?: { colorBySemantic?: boolean; wireframe?: boolean }
   ): THREE.Mesh[] {
@@ -77,45 +83,123 @@ export class NinjaLoader {
       return [];
     }
 
-    const meshes: THREE.Mesh[] = [];
     const baseColor = this.getColorForObject(cityObject);
+    
+    // 1. Group geometries by their Semantic Type (e.g. 'WallSurface', 'RoofSurface')
+    // Key = semanticType string, Value = Array of BufferGeometries
+    const groupedGeoms: Record<string, THREE.BufferGeometry[]> = {};
+    const defaultKey = '__default__'; // For faces without semantics
 
-    cityObject.geometry.forEach((geometry: any, geomIndex: number) => {
-      if (!geometry || !geometry.boundaries) {
-        return;
-      }
+    cityObject.geometry.forEach((geometry: any) => {
+      if (!geometry || !geometry.boundaries) return;
 
       const faces = this.collectFaces(geometry.boundaries, geometry.semantics);
 
-      faces.forEach((face, faceIndex) => {
+      faces.forEach((face) => {
         const bufferGeometry = this.polygonToGeometry(face.indices, vertices, face.holes);
-        if (!bufferGeometry) {
-          return;
+        if (!bufferGeometry) return;
+
+        // Determine the key for grouping
+        const semKey = (options?.colorBySemantic && face.semanticType) 
+          ? face.semanticType 
+          : defaultKey;
+
+        if (!groupedGeoms[semKey]) {
+          groupedGeoms[semKey] = [];
         }
-
-        const faceColor = options?.colorBySemantic && face.semanticType
-          ? this.getColorForSemantic(face.semanticType)
-          : baseColor;
-
-        const material = new THREE.MeshStandardMaterial({
-          color: faceColor,
-          side: THREE.DoubleSide,
-          wireframe: options?.wireframe ?? false,
-          flatShading: true
-        });
-
-        const mesh = new THREE.Mesh(bufferGeometry, material);
-        mesh.name = `${objectId}-${geomIndex}-${faceIndex}`;
-        mesh.userData = {
-          objectId,
-          cityObjectType: cityObject.type,
-          semanticType: face.semanticType ?? null
-        };
-        meshes.push(mesh);
+        groupedGeoms[semKey].push(bufferGeometry);
       });
     });
 
+    // 2. Merge geometries and create one Mesh per group
+    const meshes: THREE.Mesh[] = [];
+
+    Object.entries(groupedGeoms).forEach(([semType, geomArray]) => {
+      if (geomArray.length === 0) return;
+
+      // Merge all tiny triangles into one big geometry
+      const mergedGeometry = this.mergeGeometries(geomArray);
+
+      // Determine color
+      let finalColor = baseColor;
+      if (semType !== defaultKey && options?.colorBySemantic) {
+        finalColor = this.getColorForSemantic(semType);
+      }
+
+      const material = new THREE.MeshStandardMaterial({
+        color: finalColor,
+        side: THREE.DoubleSide,
+        wireframe: options?.wireframe ?? false,
+        flatShading: false, // Smooth shading now works because geometry is merged!
+        polygonOffset: true, 
+        polygonOffsetFactor: 1, // Helps with z-fighting if outlines are drawn
+        polygonOffsetUnits: 1
+      });
+
+      const mesh = new THREE.Mesh(mergedGeometry, material);
+      mesh.name = `${objectId}-${semType}`;
+      
+      // Assign userData for selection logic
+      mesh.userData = {
+        objectId,
+        cityObjectType: cityObject.type,
+        semanticType: semType === defaultKey ? null : semType
+      };
+
+      meshes.push(mesh);
+    });
+
     return meshes;
+  }
+
+  /**
+   * Helper to merge multiple BufferGeometries into one.
+   * This mimics BufferGeometryUtils.mergeBufferGeometries but without external dependencies.
+   */
+  private mergeGeometries(geometries: THREE.BufferGeometry[]): THREE.BufferGeometry {
+    if (geometries.length === 1) return geometries[0];
+
+    let totalVertices = 0;
+    let totalIndices = 0;
+
+    // Calculate total size
+    geometries.forEach(g => {
+      totalVertices += g.attributes['position'].count;
+      if (g.index) totalIndices += g.index.count;
+    });
+
+    const mergedPositions = new Float32Array(totalVertices * 3);
+    const mergedIndices = new Uint32Array(totalIndices);
+
+    let vertexOffset = 0;
+    let indexOffset = 0;
+
+    geometries.forEach(g => {
+      const posAttribute = g.attributes['position'];
+      
+      // Copy positions
+      mergedPositions.set(posAttribute.array as Float32Array, vertexOffset * 3);
+
+      // Copy indices with offset
+      if (g.index) {
+        const indices = g.index.array;
+        for (let i = 0; i < indices.length; i++) {
+          mergedIndices[indexOffset + i] = indices[i] + vertexOffset;
+        }
+        indexOffset += g.index.count;
+      }
+
+      vertexOffset += posAttribute.count;
+    });
+
+    const mergedGeo = new THREE.BufferGeometry();
+    mergedGeo.setAttribute('position', new THREE.BufferAttribute(mergedPositions, 3));
+    mergedGeo.setIndex(new THREE.BufferAttribute(mergedIndices, 1));
+    
+    // CRITICAL: Recompute normals on the merged geometry to smooth the seams between triangles
+    mergedGeo.computeVertexNormals();
+    
+    return mergedGeo;
   }
 
   private collectFaces(boundaries: any, semantics?: any): Array<{
@@ -277,12 +361,17 @@ export class NinjaLoader {
     return palette[key] ?? 0xbdbdbd;
   }
 
-  private getColorForSemantic(type: string): number {
+private getColorForSemantic(type: string): number {
     const palette: Record<string, number> = {
-      GroundSurface: 0xbdbdbd,
-      RoofSurface: 0xff7043,
-      WallSurface: 0x90a4ae,
-      Default: 0xbdbdbd
+      GroundSurface: 0xbdbdbd, // Grey
+      WallSurface: 0x90a4ae,   // Blue-Grey
+      RoofSurface: 0xff7043,   // Orange-Red
+      
+      // 👇 ADD THESE TWO LINES 👇
+      FloorSurface: 0x81c784,  // Green (for floors)
+      CeilingSurface: 0xba68c8,// Purple (for ceilings)
+      
+      Default: 0xbdbdbd        // Fallback color
     };
     return palette[type] ?? palette['Default'];
   }
