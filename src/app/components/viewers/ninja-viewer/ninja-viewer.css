@@ -1,25 +1,82 @@
-:host {
-  display: block;
-  width: 100%;
-  height: 100%;
-  position: relative;
+/* Container for the floating UI */
+.ui-overlay {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 10; /* Ensure it sits ON TOP of the 3D canvas */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
 }
 
-.ninja-viewer__canvas {
+/* Panel Styling */
+.creation-panel {
+  background: rgba(255, 255, 255, 0.95);
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  border: 1px solid #e0e0e0;
+  min-width: 250px;
+}
+
+.creation-panel h3 {
+  margin: 0 0 10px 0;
+  font-size: 1.1rem;
+  color: #333;
+}
+
+.creation-panel p {
+  margin: 0 0 15px 0;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+/* Input Styling */
+.input-group {
+  margin-bottom: 15px;
+}
+
+.input-group input {
   width: 100%;
-  height: 100%;
-  min-height: 360px;
-  background: radial-gradient(circle at top, #fefefe, #eaeef5);
-  border-radius: 16px;
-  overflow: hidden;
-  box-shadow:
-    0 25px 65px rgba(15, 23, 42, 0.25),
-    0 8px 20px rgba(15, 23, 42, 0.12);
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+/* Button Styling */
+.button-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+button {
   cursor: pointer;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  font-weight: 600;
+  transition: background 0.2s;
 }
 
-.ninja-viewer__canvas canvas {
-  width: 100% !important;
-  height: 100% !important;
-  display: block;
+.btn-primary {
+  background-color: #3b82f6; /* Blue */
+  color: white;
+  padding: 10px 20px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
 }
+.btn-primary:hover { background-color: #2563eb; }
+
+.btn-success {
+  background-color: #10b981; /* Green */
+  color: white;
+}
+.btn-success:hover { background-color: #059669; }
+
+.btn-secondary {
+  background-color: #e5e7eb; /* Grey */
+  color: #374151;
+}
+.btn-secondary:hover { background-color: #d1d5db; }

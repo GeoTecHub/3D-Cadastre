@@ -1,5 +1,3 @@
-<h3>City Objects</h3>
-
 @if (cityjson()) {
   <div class="tree-container">
     
@@ -7,7 +5,10 @@
       <ul>
         @for (entry of cityObjectEntries(); track entry.id) {
           <li>
-            <button (click)="onSelect(entry.id)" type="button">
+            <button 
+              (click)="onSelect(entry.id)" 
+              type="button"
+              [class.active-wireframe]="entry.id === activeWireframeId()">
               <span class="object-name">{{ entry.id }}</span>
               <span class="object-type-badge">{{ getObjectType(entry.object) }}</span>
             </button>

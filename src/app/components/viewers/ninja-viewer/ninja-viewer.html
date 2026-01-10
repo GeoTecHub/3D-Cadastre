@@ -1,1 +1,33 @@
-<div #container class="ninja-viewer__canvas"></div>
+<div #container class="viewer-container"></div>
+
+<div class="ui-overlay">
+
+  @if (!isApartmentCreationMode) {
+    <button class="btn-primary" (click)="startApartmentCreationMode()">
+      ➕ Create New Apartment
+    </button>
+  }
+
+  @if (isApartmentCreationMode) {
+    <div class="creation-panel">
+      <h3>Creating Apartment</h3>
+      <p>Select rooms (spaces) by clicking on them.</p>
+      
+      <div class="input-group">
+        <label>Apartment ID:</label>
+        <input #aptIdInput type="text" placeholder="e.g. Apt-101" />
+      </div>
+
+      <div class="button-row">
+        <button class="btn-secondary" (click)="isApartmentCreationMode = false">
+          Cancel
+        </button>
+        
+        <button class="btn-success" (click)="commitApartmentCreation(aptIdInput.value)">
+          ✅ Save Group
+        </button>
+      </div>
+    </div>
+  }
+
+</div>

@@ -16,6 +16,10 @@ export class CityobjectsTree {
   // 2. Replace @Output with output()
   selectObject = output<string>();
 
+  // 💡 NEW INPUT: The ID of the object currently in "wireframe mode" 
+  // (This ID is set by the parent component, usually after the user clicks "Create Apartment")
+  activeWireframeId = input<string | null>(null);
+
   // 3. Use computed() instead of ngOnChanges
   // This automatically updates whenever 'cityjson' changes.
 cityObjectEntries = computed(() => {

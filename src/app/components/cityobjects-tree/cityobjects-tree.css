@@ -43,7 +43,7 @@ ul {
 
 li button {
   width: 100%;
-  display: flex;               /* Enables Flexbox layout */
+  display: flex; 			 			/* Enables Flexbox layout */
   justify-content: space-between; /* Pushes Name to left, Badge to right */
   align-items: center;
   
@@ -64,6 +64,21 @@ li button:focus-visible {
   transform: translateX(4px); /* Subtle interaction effect */
   outline: none;
 }
+
+/* 💡 NEW: Style for the actively selected wireframe object */
+.active-wireframe {
+  border-color: #00ff00 !important; /* Bright green border to match wireframe */
+  background: rgba(0, 255, 0, 0.15) !important; /* Slightly green tint background */
+  box-shadow: 0 0 10px rgba(0, 255, 0, 0.4); /* Glow effect */
+  transform: none !important; /* Override the hover shift */
+}
+
+.active-wireframe .object-type-badge {
+  background: #00ff00 !important;
+  color: #1a1a1a !important; /* Dark text on bright badge */
+  font-weight: 700;
+}
+
 
 /* Object Name (Left side) */
 .object-name {
