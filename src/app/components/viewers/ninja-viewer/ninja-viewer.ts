@@ -1,4 +1,4 @@
-// components/viewers/ninja-viewer/ninja-viewer.component.ts
+// src/app/components/viewers/ninja-viewer/ninja-viewer.ts
 
 import { Component, ElementRef, ViewChild, AfterViewInit, OnDestroy, Inject, PLATFORM_ID, input, output, effect, untracked, inject } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
@@ -18,9 +18,6 @@ import { toSignal } from '@angular/core/rxjs-interop';
 })
 export class NinjaViewer implements AfterViewInit, OnDestroy {
 
-  // 💡 NEW INPUT: Controls the visual mode from the parent component
-  apartmentCreationModeEnabled = input<boolean>(false);
-  
   // 1. State flags
   isApartmentCreationMode = false;
 
@@ -69,7 +66,7 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
 
   // 💡 NEW: Define Materials for Creation Mode
   private readonly structuralSolidMaterial = new THREE.MeshStandardMaterial({ 
-    color: 0xcccccc, 
+    color: 0x00ff00, // Explicit Green for Rooms
     side: THREE.DoubleSide, 
     metalness: 0, 
     roughness: 1 
@@ -78,7 +75,7 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     color: 0x808080, 
     side: THREE.DoubleSide, 
     transparent: true, 
-    opacity: 0.2, // Ghosted look
+    opacity: 0.1, // Very faint walls
     metalness: 0, 
     roughness: 1
   });
@@ -92,7 +89,6 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
 
   constructor(
     private ninjaLoader: NinjaLoader,
-
     @Inject(PLATFORM_ID) platformId: object
   ) {
     this.isBrowser = isPlatformBrowser(platformId);
@@ -100,7 +96,6 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     // 1. React to Data Changes
     effect(() => {
       const data = this.cityData();
-      // untracked prevents loop if loadModel triggers other signals
       untracked(() => {
         if (data) this.loadModel();
         else this.clearModel();
@@ -114,10 +109,9 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
         if (!id) {
           this.clearSelection(true);
         } else {
-          // Check if already selected to prevent flicker
           const currentId = this.selectedMesh ? this.findObjectId(this.selectedMesh) : null;
           if (currentId !== id) {
-            const meshes = this.findAllMeshesByObjectId(id); // Now O(1) fast!
+            const meshes = this.findAllMeshesByObjectId(id);
             if (meshes.length > 0) {
               this.applySelectionToMeshes(meshes, id, false);
             }
@@ -125,19 +119,8 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
         }
       });
     });
-
-    // 💡 NEW EFFECT: React to Apartment Creation Mode Change
-    effect(() => {
-      // Trigger material refresh when the mode input changes
-      this.apartmentCreationModeEnabled(); 
-      untracked(() => {
-        if (this.cityModel) {
-          this.refreshModelMaterials();
-        }
-      });
-    });
-
   }
+
   ngAfterViewInit(): void {
     if (this.isBrowser) {
       this.initScene();
@@ -155,13 +138,11 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
 
     if (this.animationId) cancelAnimationFrame(this.animationId);
 
-    this.clearModel(); // Ensure GPU memory is freed
+    this.clearModel();
     this.renderer?.dispose();
   }
 
   private initScene(): void {
-    // ... (Your existing init code is fine, keep it same) ...
-    // Just ensure you bind the events correctly as you did before.
     if (!this.container) return;
 
     const { width, height } = this.getContainerSize();
@@ -178,7 +159,6 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
 
     this.container.nativeElement.appendChild(this.renderer.domElement);
 
-    // Add Lights & Controls...
     const ambient = new THREE.AmbientLight(0xffffff, 0.9);
     this.scene.add(ambient);
 
@@ -193,10 +173,8 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     this.animate();
   }
 
-
   private clearModel(): void {
     if (this.cityModel) {
-      // 1. Manually dispose geometries and materials
       this.cityModel.traverse((child) => {
         if (child instanceof THREE.Mesh) {
           child.geometry.dispose();
@@ -207,7 +185,6 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
           }
         }
       });
-      // 2. Remove from scene
       this.scene.remove(this.cityModel);
       this.cityModel = null;
     }
@@ -221,80 +198,79 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     this.cityModel = this.ninjaLoader.createSceneGroup({ colorBySemantic: true });
 
     if (this.cityModel) {
-      // Build the Fast Lookup Map
       this.buildLookupMap(this.cityModel);
-
       this.normalizeModelScale(this.cityModel);
       this.scene.add(this.cityModel);
       this.fitCameraToModel();
-
-      // 💡 NEW: Apply initial material based on the current mode
       this.refreshModelMaterials();
     }
   }
 
-
   /**
-   * 💡 NEW: Traverses the model and sets materials based on the active mode.
-   * - In Creation Mode: Structural elements are solid, Rooms are ghosted.
-   * - In Normal Mode: Restores original materials (colored by semantic).
+   * 💡 FIXED: Robust checking for Rooms vs Walls
    */
   private refreshModelMaterials(): void {
     if (!this.cityModel) return;
 
-    const isCreationMode = this.apartmentCreationModeEnabled();
+    const isCreationMode = this.isApartmentCreationMode;
     
-    // Clear selection state before changing all materials to avoid conflicts
     this.clearSelection(true);
 
     this.cityModel.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         
-        const objectType = child.userData['cityObjectType'] as string | undefined;
+        // 1. Retrieve Data
+        const userData = child.userData || {};
+        const cityObjType = userData['cityObjectType']; 
+        const attributes = userData['attributes'] || {};
+        const ifcType = attributes['ifc_type'];
 
-        // 1. If coming from Creation Mode, restore original material
-        if (child.userData['__originalMaterial']) {
-          child.material = child.userData['__originalMaterial'];
-          delete child.userData['__originalMaterial'];
+        // 2. Restore Original Material first
+        if (userData['__originalMaterial']) {
+          child.material = userData['__originalMaterial'];
+          delete userData['__originalMaterial'];
         }
 
         if (isCreationMode) {
-          // 2. Apply Creation Mode Materials
-          if (!child.userData['__originalMaterial']) {
-            // Save original material (semantic color) before overwriting
-            child.userData['__originalMaterial'] = child.material;
+          if (!userData['__originalMaterial']) {
+            userData['__originalMaterial'] = child.material;
           }
 
-          if (objectType === 'BuildingRoom') {
-            // All rooms (potential apartments) become ghosted
-            child.material = this.ghostRoomMaterial;
+          // 3. ROBUST CHECK: Is this a Room?
+          // Checks CityJSON type OR raw IFC type
+          const isRoom = cityObjType === 'BuildingRoom' || cityObjType === 'Room' || ifcType === 'IfcSpace';
+
+          if (isRoom) {
+            // TARGET: Solid Green
+            child.material = this.structuralSolidMaterial; 
           } else {
-            // All structural elements become solid/plain
-            child.material = this.structuralSolidMaterial;
+            // CONTEXT: Ghosted Walls
+            child.material = this.ghostRoomMaterial;
           }
         }
         
-        // Clear any old color/opacity modifications
+        // Ensure opacity is correct
         if (this.getMeshMaterial(child)) {
+             // Re-calculate isRoom for opacity check
+             const isRoom = cityObjType === 'BuildingRoom' || cityObjType === 'Room' || ifcType === 'IfcSpace';
              (this.getMeshMaterial(child) as THREE.MeshStandardMaterial).opacity = isCreationMode ? 
-                (objectType === 'BuildingRoom' ? 0.2 : 1.0) : // Set default opacity for creation mode
-                1.0; // Reset to solid in normal mode (unless handled by original loader material)
+                (isRoom ? 1.0 : 0.1) : 
+                1.0; 
         }
       }
     });
 
-    // 3. Re-apply wireframe to currently selected rooms in creation mode
+    // Re-apply wireframe to currently selected items
     if (isCreationMode) {
         this.currentRoomSelection.forEach(roomId => {
             const meshes = this.findAllMeshesByObjectId(roomId);
             meshes.forEach(mesh => {
-                // Overwrite the ghost material with the wireframe material
                 mesh.material = this.wireframeRoomMaterial; 
             });
         });
     }
   }
-  // --- ⚡ OPTIMIZED LOOKUP ---
+
   private buildLookupMap(group: THREE.Group) {
     this.meshLookup.clear();
     group.traverse((obj) => {
@@ -308,16 +284,11 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     });
   }
 
-
   private fitCameraToModel(): void {
-    if (!this.cityModel || !this.camera || !this.controls) {
-      return;
-    }
+    if (!this.cityModel || !this.camera || !this.controls) return;
 
     const box = new THREE.Box3().setFromObject(this.cityModel);
-    if (box.isEmpty()) {
-      return;
-    }
+    if (box.isEmpty()) return;
 
     const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
@@ -334,16 +305,12 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     this.controls.target.copy(center);
     this.controls.maxDistance = distance * 15;
     this.controls.minDistance = minDistance;
-    this.controls.enablePan = true;
-    this.controls.enableZoom = true;
     this.controls.update();
   }
 
   private animate = (): void => {
     this.animationId = requestAnimationFrame(this.animate);
-    if (!this.renderer || !this.scene || !this.camera) {
-      return;
-    }
+    if (!this.renderer || !this.scene || !this.camera) return;
     this.controls?.update();
     this.renderer.render(this.scene, this.camera);
   };
@@ -354,16 +321,11 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     const fallbackHeight = this.isBrowser ? window.innerHeight : 600;
     const width = element.clientWidth || element.parentElement?.clientWidth || fallbackWidth;
     const height = element.clientHeight || element.parentElement?.clientHeight || fallbackHeight;
-    return {
-      width: Math.max(width ?? 0, 200),
-      height: Math.max(height ?? 0, 200)
-    };
+    return { width: Math.max(width ?? 0, 200), height: Math.max(height ?? 0, 200) };
   }
 
   private handleResize = (): void => {
-    if (!this.isBrowser || !this.renderer || !this.camera) {
-      return;
-    }
+    if (!this.isBrowser || !this.renderer || !this.camera) return;
     const { width, height } = this.getContainerSize();
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
@@ -372,9 +334,7 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
 
   private normalizeModelScale(group: THREE.Group): number {
     const box = new THREE.Box3().setFromObject(group);
-    if (box.isEmpty()) {
-      return 1;
-    }
+    if (box.isEmpty()) return 1;
 
     const size = box.getSize(new THREE.Vector3());
     const maxDim = Math.max(size.x, size.y, size.z);
@@ -391,39 +351,26 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     if (scale !== 1) {
       group.scale.setScalar(scale);
     }
-
     return scale;
   }
 
   private handlePointerDown = (event: PointerEvent): void => {
-    if (event.button !== 0) {
-      return;
-    }
+    if (event.button !== 0) return;
     this.pointerIsDown = true;
     this.pointerDownPos.set(event.clientX, event.clientY);
   };
 
   private handlePointerUp = (event: PointerEvent): void => {
-    if (!this.pointerIsDown || event.button !== 0) {
-      return;
-    }
+    if (!this.pointerIsDown || event.button !== 0) return;
     this.pointerIsDown = false;
     const deltaX = event.clientX - this.pointerDownPos.x;
     const deltaY = event.clientY - this.pointerDownPos.y;
-    if (Math.hypot(deltaX, deltaY) > 4) {
-      return;
-    }
+    if (Math.hypot(deltaX, deltaY) > 4) return;
     this.pickObject(event);
   };
 
-  private handlePointerCancel = (): void => {
-    this.pointerIsDown = false;
-  };
-
   private handlePointerMove = (event: PointerEvent): void => {
-    if (!this.cityModel || !this.camera || !this.renderer || this.pointerIsDown) {
-      return;
-    }
+    if (!this.cityModel || !this.camera || !this.renderer || this.pointerIsDown) return;
 
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -439,21 +386,15 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     }
 
     const mesh = intersections[0].object as THREE.Mesh;
-
-    // Don't hover if it's the selected mesh
     if (this.selectedMesh?.uuid === mesh.uuid) {
       this.clearHover();
       return;
     }
-
     this.applyHover(mesh);
   };
 
   private pickObject(event: PointerEvent): void {
-    // 1. Standard Raycasting Setup
-    if (!this.cityModel || !this.camera || !this.renderer) {
-      return;
-    }
+    if (!this.cityModel || !this.camera || !this.renderer) return;
 
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -461,117 +402,94 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
 
     this.cityModel.updateWorldMatrix(true, true);
     this.raycaster.setFromCamera(this.pointer, this.camera);
-
-    // Intersect against the whole cityModel group
     const intersections = this.raycaster.intersectObject(this.cityModel, true);
 
-    // 2. Handle "Missed" Clicks (Clicking empty space)
     if (intersections.length === 0) {
-      // If we are NOT in creation mode, clear the selection.
-      // If we ARE in creation mode, do nothing (prevent accidental clearing of the list).
       if (!this.isApartmentCreationMode) {
         this.clearSelection();
       }
       return;
     }
 
-    // 3. Handle "Hit"
     const hit = intersections[0];
     const mesh = hit.object as THREE.Mesh;
-
-    // Retrieve metadata stored in userData by the loader
     const objectId = this.findObjectId(mesh);
-    const objectType = mesh.userData['cityObjectType']; // e.g., 'BuildingRoom', 'BuildingPart'
+    
+    // Retrieve Type Data
+    const userData = mesh.userData || {};
+    const cityObjType = userData['cityObjectType']; 
+    const attributes = userData['attributes'] || {};
+    const ifcType = attributes['ifc_type'];
 
     if (!objectId) return;
 
     // 4. Mode-Based Selection Logic
     if (this.isApartmentCreationMode) {
       // --- APARTMENT CREATION MODE ---
-      // Strict Filter: Only allow selecting 'BuildingRoom' (mapped from IfcSpace)
-      if (objectType === 'BuildingRoom') {
+      // Strict Filter: Use same robust check as visualizer
+      const isRoom = cityObjType === 'BuildingRoom' || cityObjType === 'Room' || ifcType === 'IfcSpace';
+
+      if (isRoom) {
         this.toggleRoomSelection(mesh, objectId);
       } else {
-        console.log(`Creation Mode: Ignoring click on ${objectType} (Only Rooms allowed)`);
+        console.log(`Creation Mode: Ignoring click on ${cityObjType}/${ifcType} (Only Rooms allowed)`);
       }
 
     } else {
       // --- NORMAL VIEWING MODE ---
-      // Check if this object is already part of a defined Apartment Group
       const apartmentId = this.roomToApartmentMap.get(objectId);
-
       if (apartmentId) {
-        // If it belongs to an apartment, select the WHOLE apartment
         this.selectApartmentGroup(apartmentId);
       } else {
-        // Otherwise, standard single object selection
         this.applySelection(mesh);
       }
     }
   }
-  /**
-    * Called in normal mode when clicking a room that belongs to a group.
-     * Highlights ALL rooms in that apartment.
-     */
-  private selectApartmentGroup(groupId: string) {
-    this.clearSelection(true); // Clear any existing selection
 
-    // 1. Get all room IDs for this apartment
+  private selectApartmentGroup(groupId: string) {
+    this.clearSelection(true);
     const roomIds = this.apartmentRegistry.get(groupId);
     if (!roomIds) return;
 
-    // 2. Find meshes for ALL rooms
     const allMeshes: THREE.Mesh[] = [];
     roomIds.forEach(id => {
       const meshes = this.findAllMeshesByObjectId(id);
       allMeshes.push(...meshes);
     });
 
-    // 3. Highlight them all together
     allMeshes.forEach(mesh => {
       const material = this.getMeshMaterial(mesh);
       if (material) {
-        // Save original color if not already saved
         if (!mesh.userData['__originalColor']) {
           mesh.userData['__originalColor'] = material.color.clone();
         }
-        material.color.setHex(0xffaa00); // Gold color for selected apartment
-        material.opacity = 0.8; // Make it more solid
+        material.color.setHex(0xffaa00);
+        material.opacity = 0.8;
       }
     });
 
-    // 4. Draw outline around ALL rooms
     this.createOutlineForMeshes(allMeshes);
-
-    // 5. Output the Apartment ID to the UI
     this.objectSelected.emit(groupId);
   }
 
   private applySelection(mesh: THREE.Mesh): void {
     const objectId = this.findObjectId(mesh);
     if (!objectId) return;
-
-    // Use optimized lookup
     const meshes = this.findAllMeshesByObjectId(objectId);
     this.applySelectionToMeshes(meshes, objectId, true);
   }
 
   private applySelectionToMeshes(meshes: THREE.Mesh[], objectId: string, emit: boolean) {
     this.clearSelection(true);
-
     meshes.forEach(m => {
-      // ... (Your highlight logic: store original color, set highlight color) ...
-      // Same as your original code
       const material = this.getMeshMaterial(m);
       if (material) {
         m.userData['__originalColor'] = material.color.clone();
         material.color.copy(this.highlightColor);
       }
     });
-
     this.selectedMesh = meshes[0];
     this.createOutlineForMeshes(meshes);
-
     if (emit) {
       this.objectSelected.emit(objectId);
     }
@@ -579,54 +497,30 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
 
   private clearSelection(silent = false): void {
     if (!this.selectedMesh) {
-      if (!silent) {
-        this.objectSelected.emit('');
-      }
+      if (!silent) this.objectSelected.emit('');
       return;
     }
-
-    // Get the objectId and find all meshes
     const objectId = this.findObjectId(this.selectedMesh);
     if (objectId) {
       const meshesInObject = this.findAllMeshesByObjectId(objectId);
-
-      // Restore original colors for all meshes in the object
       meshesInObject.forEach(mesh => {
         const material = this.getMeshMaterial(mesh);
         const originalColor = mesh.userData['__originalColor'] as THREE.Color | undefined;
-        const originalEmissive = mesh.userData['__originalEmissive'] as THREE.Color | undefined;
-
         if (material && originalColor) {
           material.color.copy(originalColor);
         }
-
-        if (material && originalEmissive && material.emissive) {
-          material.emissive.copy(originalEmissive);
-          material.emissiveIntensity = 0;
-        }
       });
     }
-
     this.selectedMesh = null;
     this.removeOutline();
-
-    if (!silent) {
-      this.objectSelected.emit('');
-    }
+    if (!silent) this.objectSelected.emit('');
   }
 
   private applyHover(mesh: THREE.Mesh): void {
-    if (this.hoveredMesh?.uuid === mesh.uuid) {
-      return;
-    }
-
+    if (this.hoveredMesh?.uuid === mesh.uuid) return;
     this.clearHover();
-
     const material = this.getMeshMaterial(mesh);
-    if (!material) {
-      return;
-    }
-
+    if (!material) return;
     mesh.userData['__hoverOriginalColor'] = material.color.clone();
     material.color.copy(this.hoverColor);
     this.hoveredMesh = mesh;
@@ -636,56 +530,38 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     if (this.hoveredMesh) {
       const material = this.getMeshMaterial(this.hoveredMesh);
       const originalColor = this.hoveredMesh.userData['__hoverOriginalColor'] as THREE.Color | undefined;
-
       if (material && originalColor) {
         material.color.copy(originalColor);
       }
-
       this.hoveredMesh = null;
     }
   }
 
   private createOutlineForMeshes(meshes: THREE.Mesh[]): void {
     this.removeOutline();
-
     meshes.forEach(mesh => {
       const geometry = mesh.geometry;
-      if (!geometry) {
-        return;
-      }
-
-      // Create edges geometry for outline
-      const edges = new THREE.EdgesGeometry(geometry, 80); // threshold angle in degrees
+      if (!geometry) return;
+      const edges = new THREE.EdgesGeometry(geometry, 80);
       const lineMaterial = new THREE.LineBasicMaterial({
         color: 0xffffff,
         linewidth: 2,
         transparent: true,
         opacity: 0.8
       });
-
       const outlineMesh = new THREE.LineSegments(edges, lineMaterial);
-
-      // Copy transform from the mesh
       outlineMesh.position.copy(mesh.position);
       outlineMesh.rotation.copy(mesh.rotation);
       outlineMesh.scale.copy(mesh.scale);
-
-      // Add to parent so it moves with the mesh
-      if (mesh.parent) {
-        mesh.parent.add(outlineMesh);
-      } else {
-        this.scene.add(outlineMesh);
-      }
-
+      if (mesh.parent) mesh.parent.add(outlineMesh);
+      else this.scene.add(outlineMesh);
       this.outlineMeshes.push(outlineMesh);
     });
   }
 
   private removeOutline(): void {
     this.outlineMeshes.forEach(outlineMesh => {
-      if (outlineMesh.parent) {
-        outlineMesh.parent.remove(outlineMesh);
-      }
+      if (outlineMesh.parent) outlineMesh.parent.remove(outlineMesh);
       outlineMesh.geometry.dispose();
       if (Array.isArray(outlineMesh.material)) {
         outlineMesh.material.forEach(mat => mat.dispose());
@@ -714,117 +590,63 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     return null;
   }
 
-  private findMeshById(objectId: string): THREE.Mesh | null {
-    if (!this.cityModel) {
-      return null;
-    }
-    let target: THREE.Mesh | null = null;
-    this.cityModel.traverse(obj => {
-      if (target || !(obj instanceof THREE.Mesh)) {
-        return;
-      }
-      if (obj.userData && obj.userData['objectId'] === objectId) {
-        target = obj;
-      }
-    });
-    return target;
-  }
-
-  /**
-   * Find all meshes that belong to the same CityJSON object
-   * This includes walls, roofs, windows, etc. that share the same objectId
-   */
   private findAllMeshesByObjectId(objectId: string): THREE.Mesh[] {
-    // Replaces O(N) traversal with O(1) map access
     return this.meshLookup.get(objectId) || [];
   }
 
-
-  // 💡 MODIFIED: Toggle logic now uses material switching
   private toggleRoomSelection(mesh: THREE.Mesh, objectId: string) {
     const index = this.currentRoomSelection.indexOf(objectId);
-    const meshes = this.findAllMeshesByObjectId(objectId); // Get all meshes for the room
+    const meshes = this.findAllMeshesByObjectId(objectId);
 
     if (index > -1) {
-      // ITEM EXISTS: Deselect it
+      // Deselect
       this.currentRoomSelection.splice(index, 1);
-      
-      // Visuals: Revert this room back to the Ghost Material
       meshes.forEach(m => {
-          m.material = this.ghostRoomMaterial;
+          m.material = this.structuralSolidMaterial; // Revert to solid green (not ghost)
       });
-
     } else {
-      // NEW ITEM: Select it
+      // Select
       this.currentRoomSelection.push(objectId);
-
-      // Visuals: Set to Wireframe Material
       meshes.forEach(m => {
           m.material = this.wireframeRoomMaterial;
       });
     }
-
     console.log("Currently Selected Rooms:", this.currentRoomSelection);
   }
 
+  // --- ACTIONS ---
 
-  // Helper to highlight a single mesh without clearing others
-  private highlightMesh(mesh: THREE.Mesh) {
-    const material = this.getMeshMaterial(mesh);
-    if (material) {
-      // Save original color if not already saved
-      if (!mesh.userData['__originalColor']) {
-        mesh.userData['__originalColor'] = material.color.clone();
-      }
-      material.color.copy(this.highlightColor);
-      material.opacity = 0.8; // Make selected rooms a bit more solid/visible
-    }
-  }
-
-  // Helper to reset a single mesh
-  private resetMeshColor(mesh: THREE.Mesh) {
-    const material = this.getMeshMaterial(mesh);
-    const originalColor = mesh.userData['__originalColor'];
-    if (material && originalColor) {
-      material.color.copy(originalColor);
-      material.opacity = 0.3; // Return to transparent ghost look
-    }
-  }
-
- // Call this when user clicks "Create Apartment" button (Now just a state reset)
   public startApartmentCreationMode() {
-    // The mode is set by the parent component via the input signal.
-    this.currentRoomSelection = []; // Reset temp list
-    this.clearSelection(true); // Clear visual selection
-    this.refreshModelMaterials(); // Ensure materials are set for creation mode
+    this.isApartmentCreationMode = true;
+    this.currentRoomSelection = [];
+    this.clearSelection(true); 
+    this.refreshModelMaterials();
     console.log("Mode: Apartment Creation Started");
   }
 
-  // Call this when user clicks "Save / Confirm" button
   public commitApartmentCreation(newApartmentId: string) {
     if (this.currentRoomSelection.length === 0) {
       console.warn("No rooms selected!");
       return;
     }
-
-    // 1. Save to Registry
     this.apartmentRegistry.set(newApartmentId, [...this.currentRoomSelection]);
-
-    // 2. Update Reverse Map (for future clicks)
     this.currentRoomSelection.forEach(roomId => {
       this.roomToApartmentMap.set(roomId, newApartmentId);
-      
-      // OPTIONAL: Persist the material change for the newly created apartment (e.g., a solid yellow)
-      // If you want the newly created apartment to retain a special look, you can set it here.
-      // For now, we rely on exiting creation mode to restore semantic colors.
-      
     });
-
     console.log(`Saved Apartment ${newApartmentId} with rooms:`, this.currentRoomSelection);
 
-    // 3. The parent component should reset the mode via the input signal.
-    // We only reset the internal room selection array.
+    // Reset State
     this.currentRoomSelection = [];
+    this.isApartmentCreationMode = false;
     this.clearSelection(true); 
+    this.refreshModelMaterials(); // Restore original colors
+  }
+
+  public cancelCreationMode() {
+    this.isApartmentCreationMode = false;
+    this.currentRoomSelection = [];
+    this.clearSelection(true);
+    this.refreshModelMaterials(); // Restore original colors
+    console.log("Mode: Creation Cancelled");
   }
 }
