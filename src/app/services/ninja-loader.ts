@@ -86,9 +86,8 @@ export class NinjaLoader {
     const baseColor = this.getColorForObject(cityObject);
     
     // 1. Group geometries by their Semantic Type (e.g. 'WallSurface', 'RoofSurface')
-    // Key = semanticType string, Value = Array of BufferGeometries
     const groupedGeoms: Record<string, THREE.BufferGeometry[]> = {};
-    const defaultKey = '__default__'; // For faces without semantics
+    const defaultKey = '__default__'; 
 
     cityObject.geometry.forEach((geometry: any) => {
       if (!geometry || !geometry.boundaries) return;
@@ -99,7 +98,6 @@ export class NinjaLoader {
         const bufferGeometry = this.polygonToGeometry(face.indices, vertices, face.holes);
         if (!bufferGeometry) return;
 
-        // Determine the key for grouping
         const semKey = (options?.colorBySemantic && face.semanticType) 
           ? face.semanticType 
           : defaultKey;
@@ -114,6 +112,9 @@ export class NinjaLoader {
     // 2. Merge geometries and create one Mesh per group
     const meshes: THREE.Mesh[] = [];
 
+    // 🟢 FIX: Check if this object is a Room (so we can make it transparent)
+    const isLegalSpace = cityObject.type === 'Room' || cityObject.type === 'BuildingRoom';
+
     Object.entries(groupedGeoms).forEach(([semType, geomArray]) => {
       if (geomArray.length === 0) return;
 
@@ -126,17 +127,27 @@ export class NinjaLoader {
         finalColor = this.getColorForSemantic(semType);
       }
 
+      // 🟢 FIX: Apply special "Ghost" styling for Rooms
+      // If it's a room, we override the color to Blue (0x00aaff)
       const material = new THREE.MeshStandardMaterial({
-        color: finalColor,
+        color: isLegalSpace ? 0x00aaff : finalColor,
         side: THREE.DoubleSide,
         wireframe: options?.wireframe ?? false,
-        flatShading: false, // Smooth shading now works because geometry is merged!
-        polygonOffset: true, 
-        polygonOffsetFactor: 1, // Helps with z-fighting if outlines are drawn
+        flatShading: false, 
+        
+        // Ghost settings
+        transparent: isLegalSpace,
+        opacity: isLegalSpace ? 0.3 : 1.0, 
+        depthWrite: !isLegalSpace, // Helps viewing objects inside/behind
+        
+        polygonOffset: true,
+        polygonOffsetFactor: 1,
         polygonOffsetUnits: 1
       });
 
       const mesh = new THREE.Mesh(mergedGeometry, material);
+      
+      // Keep unique names for semantics to help debugging
       mesh.name = `${objectId}-${semType}`;
       
       // Assign userData for selection logic

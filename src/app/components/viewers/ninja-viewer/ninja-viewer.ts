@@ -65,26 +65,26 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
   private pointerDownPos = new THREE.Vector2();
 
   // 💡 NEW: Define Materials for Creation Mode
-  private readonly structuralSolidMaterial = new THREE.MeshStandardMaterial({ 
+  private readonly structuralSolidMaterial = new THREE.MeshStandardMaterial({
     color: 0x00ff00, // Explicit Green for Rooms
-    side: THREE.DoubleSide, 
-    metalness: 0, 
-    roughness: 1 
+    side: THREE.DoubleSide,
+    metalness: 0,
+    roughness: 1
   });
-  private readonly ghostRoomMaterial = new THREE.MeshStandardMaterial({ 
-    color: 0x808080, 
-    side: THREE.DoubleSide, 
-    transparent: true, 
+  private readonly ghostRoomMaterial = new THREE.MeshStandardMaterial({
+    color: 0x808080,
+    side: THREE.DoubleSide,
+    transparent: true,
     opacity: 0.1, // Very faint walls
-    metalness: 0, 
+    metalness: 0,
     roughness: 1
   });
   private readonly wireframeRoomMaterial = new THREE.MeshBasicMaterial({
-    color: 0x00ff00, 
-    wireframe: true, 
+    color: 0x00ff00,
+    wireframe: true,
     side: THREE.DoubleSide,
     transparent: true,
-    opacity: 0.9 
+    opacity: 0.9
   });
 
   constructor(
@@ -213,15 +213,15 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     if (!this.cityModel) return;
 
     const isCreationMode = this.isApartmentCreationMode;
-    
+
     this.clearSelection(true);
 
     this.cityModel.traverse((child) => {
       if (child instanceof THREE.Mesh) {
-        
+
         // 1. Retrieve Data
         const userData = child.userData || {};
-        const cityObjType = userData['cityObjectType']; 
+        const cityObjType = userData['cityObjectType'];
         const attributes = userData['attributes'] || {};
         const ifcType = attributes['ifc_type'];
 
@@ -242,32 +242,32 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
 
           if (isRoom) {
             // TARGET: Solid Green
-            child.material = this.structuralSolidMaterial; 
+            child.material = this.structuralSolidMaterial;
           } else {
             // CONTEXT: Ghosted Walls
             child.material = this.ghostRoomMaterial;
           }
         }
-        
+
         // Ensure opacity is correct
         if (this.getMeshMaterial(child)) {
-             // Re-calculate isRoom for opacity check
-             const isRoom = cityObjType === 'BuildingRoom' || cityObjType === 'Room' || ifcType === 'IfcSpace';
-             (this.getMeshMaterial(child) as THREE.MeshStandardMaterial).opacity = isCreationMode ? 
-                (isRoom ? 1.0 : 0.1) : 
-                1.0; 
+          // Re-calculate isRoom for opacity check
+          const isRoom = cityObjType === 'BuildingRoom' || cityObjType === 'Room' || ifcType === 'IfcSpace';
+          (this.getMeshMaterial(child) as THREE.MeshStandardMaterial).opacity = isCreationMode ?
+            (isRoom ? 1.0 : 0.1) :
+            1.0;
         }
       }
     });
 
     // Re-apply wireframe to currently selected items
     if (isCreationMode) {
-        this.currentRoomSelection.forEach(roomId => {
-            const meshes = this.findAllMeshesByObjectId(roomId);
-            meshes.forEach(mesh => {
-                mesh.material = this.wireframeRoomMaterial; 
-            });
+      this.currentRoomSelection.forEach(roomId => {
+        const meshes = this.findAllMeshesByObjectId(roomId);
+        meshes.forEach(mesh => {
+          mesh.material = this.wireframeRoomMaterial;
         });
+      });
     }
   }
 
@@ -396,52 +396,62 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
   private pickObject(event: PointerEvent): void {
     if (!this.cityModel || !this.camera || !this.renderer) return;
 
+    // 1. Setup Raycaster
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
     this.cityModel.updateWorldMatrix(true, true);
     this.raycaster.setFromCamera(this.pointer, this.camera);
+    
+    // Get ALL intersections, sorted by distance (closest first)
     const intersections = this.raycaster.intersectObject(this.cityModel, true);
 
     if (intersections.length === 0) {
-      if (!this.isApartmentCreationMode) {
-        this.clearSelection();
-      }
+      if (!this.isApartmentCreationMode) this.clearSelection();
       return;
     }
 
-    const hit = intersections[0];
-    const mesh = hit.object as THREE.Mesh;
-    const objectId = this.findObjectId(mesh);
-    
-    // Retrieve Type Data
-    const userData = mesh.userData || {};
-    const cityObjType = userData['cityObjectType']; 
-    const attributes = userData['attributes'] || {};
-    const ifcType = attributes['ifc_type'];
+    // 2. Find the "Right" Hit
+    let targetMesh: THREE.Mesh | null = null;
+    let targetId: string | null = null;
 
-    if (!objectId) return;
-
-    // 4. Mode-Based Selection Logic
     if (this.isApartmentCreationMode) {
-      // --- APARTMENT CREATION MODE ---
-      // Strict Filter: Use same robust check as visualizer
-      const isRoom = cityObjType === 'BuildingRoom' || cityObjType === 'Room' || ifcType === 'IfcSpace';
+      // --- CREATION MODE: X-Ray Vision ---
+      // Loop through hits to find the first 'Room', ignoring walls in front of it.
+      const roomHit = intersections.find(hit => {
+        const mesh = hit.object as THREE.Mesh;
+        const type = mesh.userData['cityObjectType'];
+        return type === 'Room' || type === 'BuildingRoom';
+      });
 
-      if (isRoom) {
-        this.toggleRoomSelection(mesh, objectId);
-      } else {
-        console.log(`Creation Mode: Ignoring click on ${cityObjType}/${ifcType} (Only Rooms allowed)`);
+      if (roomHit) {
+        targetMesh = roomHit.object as THREE.Mesh;
+        targetId = this.findObjectId(targetMesh);
       }
 
     } else {
-      // --- NORMAL VIEWING MODE ---
-      const apartmentId = this.roomToApartmentMap.get(objectId);
+      // --- NORMAL MODE: Standard Selection ---
+      // Just take the very first thing we hit (Wall, Roof, etc.)
+      targetMesh = intersections[0].object as THREE.Mesh;
+      targetId = this.findObjectId(targetMesh);
+    }
+
+    // 3. Process the Selection
+    if (!targetMesh || !targetId) {
+      // We hit something, but it wasn't a valid target for the current mode
+      return; 
+    }
+
+    if (this.isApartmentCreationMode) {
+      this.toggleRoomSelection(targetMesh, targetId);
+    } else {
+      // Normal behavior logic
+      const apartmentId = this.roomToApartmentMap.get(targetId);
       if (apartmentId) {
         this.selectApartmentGroup(apartmentId);
       } else {
-        this.applySelection(mesh);
+        this.applySelection(targetMesh);
       }
     }
   }
@@ -602,13 +612,13 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
       // Deselect
       this.currentRoomSelection.splice(index, 1);
       meshes.forEach(m => {
-          m.material = this.structuralSolidMaterial; // Revert to solid green (not ghost)
+        m.material = this.structuralSolidMaterial; // Revert to solid green (not ghost)
       });
     } else {
       // Select
       this.currentRoomSelection.push(objectId);
       meshes.forEach(m => {
-          m.material = this.wireframeRoomMaterial;
+        m.material = this.wireframeRoomMaterial;
       });
     }
     console.log("Currently Selected Rooms:", this.currentRoomSelection);
@@ -619,7 +629,7 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
   public startApartmentCreationMode() {
     this.isApartmentCreationMode = true;
     this.currentRoomSelection = [];
-    this.clearSelection(true); 
+    this.clearSelection(true);
     this.refreshModelMaterials();
     console.log("Mode: Apartment Creation Started");
   }
@@ -638,7 +648,7 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     // Reset State
     this.currentRoomSelection = [];
     this.isApartmentCreationMode = false;
-    this.clearSelection(true); 
+    this.clearSelection(true);
     this.refreshModelMaterials(); // Restore original colors
   }
 
