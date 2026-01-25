@@ -84,22 +84,29 @@ export class NinjaLoader {
     }
 
     const baseColor = this.getColorForObject(cityObject);
-    
+
     // 1. Group geometries by their Semantic Type (e.g. 'WallSurface', 'RoofSurface')
     const groupedGeoms: Record<string, THREE.BufferGeometry[]> = {};
-    const defaultKey = '__default__'; 
+    const defaultKey = '__default__';
 
     cityObject.geometry.forEach((geometry: any) => {
       if (!geometry || !geometry.boundaries) return;
 
+      // Pass the full semantics object to collectFaces
       const faces = this.collectFaces(geometry.boundaries, geometry.semantics);
+
+      // Debug: Log semantic types found
+      const semanticTypes = [...new Set(faces.map(f => f.semanticType).filter(Boolean))];
+      if (semanticTypes.length > 0) {
+        console.log(`[${objectId}] Found semantic types:`, semanticTypes);
+      }
 
       faces.forEach((face) => {
         const bufferGeometry = this.polygonToGeometry(face.indices, vertices, face.holes);
         if (!bufferGeometry) return;
 
-        const semKey = (options?.colorBySemantic && face.semanticType) 
-          ? face.semanticType 
+        const semKey = (options?.colorBySemantic && face.semanticType)
+          ? face.semanticType
           : defaultKey;
 
         if (!groupedGeoms[semKey]) {
@@ -112,8 +119,14 @@ export class NinjaLoader {
     // 2. Merge geometries and create one Mesh per group
     const meshes: THREE.Mesh[] = [];
 
-    // 🟢 FIX: Check if this object is a Room (so we can make it transparent)
+    // Check if this object is a Room (so we can make it transparent)
     const isLegalSpace = cityObject.type === 'Room' || cityObject.type === 'BuildingRoom';
+
+    // Debug: Log grouped semantics
+    const groupKeys = Object.keys(groupedGeoms);
+    if (groupKeys.length > 1 || (groupKeys.length === 1 && groupKeys[0] !== defaultKey)) {
+      console.log(`[${objectId}] Grouped by semantics:`, groupKeys);
+    }
 
     Object.entries(groupedGeoms).forEach(([semType, geomArray]) => {
       if (geomArray.length === 0) return;
@@ -125,6 +138,7 @@ export class NinjaLoader {
       let finalColor = baseColor;
       if (semType !== defaultKey && options?.colorBySemantic) {
         finalColor = this.getColorForSemantic(semType);
+        console.log(`[${objectId}] Using color 0x${finalColor.toString(16)} for ${semType}`);
       }
 
       // 🟢 FIX: Apply special "Ghost" styling for Rooms
@@ -220,7 +234,10 @@ export class NinjaLoader {
   }> {
     const faces: Array<{ indices: number[]; holes?: number[][]; semanticType?: string }> = [];
 
-    const traverse = (node: any, semanticNode: any) => {
+    // Store reference to outer semantics for surface lookup
+    const semanticsObj = semantics;
+
+    const traverse = (node: any, semanticValues: any) => {
       if (!Array.isArray(node) || node.length === 0) {
         return;
       }
@@ -232,7 +249,7 @@ export class NinjaLoader {
         faces.push({
           indices: node as number[],
           holes: [],
-          semanticType: this.resolveSemanticType(semanticNode, semantics)
+          semanticType: this.resolveSemanticType(semanticValues, semanticsObj)
         });
         return;
       }
@@ -243,35 +260,50 @@ export class NinjaLoader {
         faces.push({
           indices: outer ?? [],
           holes,
-          semanticType: this.resolveSemanticType(semanticNode, semantics)
+          semanticType: this.resolveSemanticType(semanticValues, semanticsObj)
         });
         return;
       }
 
       // Case 3: nested collection (Solids, CompositeSolids, etc.)
       node.forEach((child: any, index: number) => {
-        const nextSemantic = Array.isArray(semanticNode) ? semanticNode[index] : semanticNode;
+        // Get the semantic value for this child
+        const nextSemantic = Array.isArray(semanticValues) ? semanticValues[index] : semanticValues;
         traverse(child, nextSemantic);
       });
     };
 
-    traverse(boundaries, semantics?.values ?? semantics);
+    // Start traversal with semantic values (or undefined if no semantics)
+    const initialValues = semantics?.values;
+    traverse(boundaries, initialValues);
+
     return faces.filter(face => face.indices.length >= 3);
   }
 
   private resolveSemanticType(valueNode: any, semantics?: any): string | undefined {
+    // Handle null/undefined semantic values
+    if (valueNode === null || valueNode === undefined) {
+      return undefined;
+    }
+
+    // If valueNode is an array, try to find a number in it
     if (Array.isArray(valueNode)) {
-      const candidate = valueNode.find((value: any) => typeof value === 'number');
+      const candidate = valueNode.find((value: any) => typeof value === 'number' && value !== null);
       if (typeof candidate === 'number') {
         valueNode = candidate;
+      } else {
+        return undefined;
       }
     }
-    if (typeof valueNode === 'number' && semantics?.surfaces?.[valueNode]) {
+
+    // Look up the semantic surface type
+    if (typeof valueNode === 'number' && semantics?.surfaces) {
       const surface = semantics.surfaces[valueNode];
       if (surface?.type) {
         return String(surface.type);
       }
     }
+
     return undefined;
   }
 
