@@ -1,6 +1,10 @@
 // Path: src/environment/environment.ts
+// WARNING: Never commit real API tokens to version control!
+// Use environment variables or a secrets manager in production.
+// Consider adding this file to .gitignore and using environment.example.ts as a template.
 
 export const environment = {
   production: false,
-  apiToken: 'YOUR_REAL_PRODUCTION_API_TOKEN_HERE' // This is your live, secret token
+  // Replace with your actual token or use process.env at build time
+  apiToken: process.env['API_TOKEN'] || 'PLACEHOLDER_TOKEN'
 };

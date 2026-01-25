@@ -18,6 +18,16 @@ import { toSignal } from '@angular/core/rxjs-interop';
 })
 export class NinjaViewer implements AfterViewInit, OnDestroy {
 
+  // Camera and scene configuration constants
+  private static readonly INITIAL_CAMERA_POSITION = 30;
+  private static readonly CAMERA_FOV = 45;
+  private static readonly CAMERA_NEAR = 0.1;
+  private static readonly CAMERA_FAR = 1_000_000;
+  private static readonly MODEL_MIN_COMFORT_SIZE = 60;
+  private static readonly MODEL_MAX_COMFORT_SIZE = 800;
+  private static readonly CAMERA_DISTANCE_MULTIPLIER = 1.6;
+  private static readonly CLICK_THRESHOLD = 4; // pixels
+
   // 1. State flags
   isApartmentCreationMode = false;
 
@@ -134,11 +144,18 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     window.removeEventListener('pointerup', this.handlePointerUp);
 
     this.renderer?.domElement.removeEventListener('pointerdown', this.handlePointerDown);
+    this.renderer?.domElement.removeEventListener('pointermove', this.handlePointerMove);
     this.controls?.dispose();
 
     if (this.animationId) cancelAnimationFrame(this.animationId);
 
     this.clearModel();
+
+    // Dispose class-level materials
+    this.structuralSolidMaterial.dispose();
+    this.ghostRoomMaterial.dispose();
+    this.wireframeRoomMaterial.dispose();
+
     this.renderer?.dispose();
   }
 
@@ -149,8 +166,14 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0xf6f7fb);
 
-    this.camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1_000_000);
-    this.camera.position.set(30, 30, 30);
+    this.camera = new THREE.PerspectiveCamera(
+      NinjaViewer.CAMERA_FOV,
+      width / height,
+      NinjaViewer.CAMERA_NEAR,
+      NinjaViewer.CAMERA_FAR
+    );
+    const pos = NinjaViewer.INITIAL_CAMERA_POSITION;
+    this.camera.position.set(pos, pos, pos);
     this.camera.up.set(0, 0, 1);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -207,7 +230,8 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
   }
 
   /**
-   * 💡 FIXED: Robust checking for Rooms vs Walls
+   * Updates material visibility based on apartment creation mode.
+   * In creation mode: rooms are solid green, walls are ghosted.
    */
   private refreshModelMaterials(): void {
     if (!this.cityModel) return;
@@ -218,14 +242,15 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
 
     this.cityModel.traverse((child) => {
       if (child instanceof THREE.Mesh) {
-
-        // 1. Retrieve Data
         const userData = child.userData || {};
         const cityObjType = userData['cityObjectType'];
         const attributes = userData['attributes'] || {};
         const ifcType = attributes['ifc_type'];
 
-        // 2. Restore Original Material first
+        // Determine if this mesh represents a room (calculated once)
+        const isRoom = cityObjType === 'BuildingRoom' || cityObjType === 'Room' || ifcType === 'IfcSpace';
+
+        // Restore original material first
         if (userData['__originalMaterial']) {
           child.material = userData['__originalMaterial'];
           delete userData['__originalMaterial'];
@@ -236,26 +261,14 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
             userData['__originalMaterial'] = child.material;
           }
 
-          // 3. ROBUST CHECK: Is this a Room?
-          // Checks CityJSON type OR raw IFC type
-          const isRoom = cityObjType === 'BuildingRoom' || cityObjType === 'Room' || ifcType === 'IfcSpace';
-
-          if (isRoom) {
-            // TARGET: Solid Green
-            child.material = this.structuralSolidMaterial;
-          } else {
-            // CONTEXT: Ghosted Walls
-            child.material = this.ghostRoomMaterial;
-          }
+          // Apply appropriate material based on object type
+          child.material = isRoom ? this.structuralSolidMaterial : this.ghostRoomMaterial;
         }
 
         // Ensure opacity is correct
-        if (this.getMeshMaterial(child)) {
-          // Re-calculate isRoom for opacity check
-          const isRoom = cityObjType === 'BuildingRoom' || cityObjType === 'Room' || ifcType === 'IfcSpace';
-          (this.getMeshMaterial(child) as THREE.MeshStandardMaterial).opacity = isCreationMode ?
-            (isRoom ? 1.0 : 0.1) :
-            1.0;
+        const material = this.getMeshMaterial(child);
+        if (material) {
+          material.opacity = isCreationMode ? (isRoom ? 1.0 : 0.1) : 1.0;
         }
       }
     });
@@ -293,7 +306,7 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
     const maxDim = Math.max(size.x, size.y, size.z, 1);
-    const distance = maxDim * 1.6;
+    const distance = maxDim * NinjaViewer.CAMERA_DISTANCE_MULTIPLIER;
     const minDistance = Math.max(maxDim * 0.005, 0.02);
 
     this.camera.position.copy(center).add(new THREE.Vector3(distance, distance, distance));
@@ -338,14 +351,12 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
 
     const size = box.getSize(new THREE.Vector3());
     const maxDim = Math.max(size.x, size.y, size.z);
-    const minComfort = 60;
-    const maxComfort = 800;
     let scale = 1;
 
-    if (maxDim < minComfort) {
-      scale = minComfort / Math.max(maxDim, 1e-3);
-    } else if (maxDim > maxComfort) {
-      scale = maxComfort / maxDim;
+    if (maxDim < NinjaViewer.MODEL_MIN_COMFORT_SIZE) {
+      scale = NinjaViewer.MODEL_MIN_COMFORT_SIZE / Math.max(maxDim, 1e-3);
+    } else if (maxDim > NinjaViewer.MODEL_MAX_COMFORT_SIZE) {
+      scale = NinjaViewer.MODEL_MAX_COMFORT_SIZE / maxDim;
     }
 
     if (scale !== 1) {
@@ -365,7 +376,7 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     this.pointerIsDown = false;
     const deltaX = event.clientX - this.pointerDownPos.x;
     const deltaY = event.clientY - this.pointerDownPos.y;
-    if (Math.hypot(deltaX, deltaY) > 4) return;
+    if (Math.hypot(deltaX, deltaY) > NinjaViewer.CLICK_THRESHOLD) return;
     this.pickObject(event);
   };
 
@@ -621,7 +632,6 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
         m.material = this.wireframeRoomMaterial;
       });
     }
-    console.log("Currently Selected Rooms:", this.currentRoomSelection);
   }
 
   // --- ACTIONS ---
@@ -631,32 +641,42 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     this.currentRoomSelection = [];
     this.clearSelection(true);
     this.refreshModelMaterials();
-    console.log("Mode: Apartment Creation Started");
   }
 
   public commitApartmentCreation(newApartmentId: string) {
+    const trimmedId = newApartmentId?.trim();
+
+    if (!trimmedId) {
+      console.warn("Apartment ID cannot be empty!");
+      return;
+    }
+
+    if (this.apartmentRegistry.has(trimmedId)) {
+      console.warn(`Apartment "${trimmedId}" already exists!`);
+      return;
+    }
+
     if (this.currentRoomSelection.length === 0) {
       console.warn("No rooms selected!");
       return;
     }
-    this.apartmentRegistry.set(newApartmentId, [...this.currentRoomSelection]);
+
+    this.apartmentRegistry.set(trimmedId, [...this.currentRoomSelection]);
     this.currentRoomSelection.forEach(roomId => {
-      this.roomToApartmentMap.set(roomId, newApartmentId);
+      this.roomToApartmentMap.set(roomId, trimmedId);
     });
-    console.log(`Saved Apartment ${newApartmentId} with rooms:`, this.currentRoomSelection);
 
     // Reset State
     this.currentRoomSelection = [];
     this.isApartmentCreationMode = false;
     this.clearSelection(true);
-    this.refreshModelMaterials(); // Restore original colors
+    this.refreshModelMaterials();
   }
 
   public cancelCreationMode() {
     this.isApartmentCreationMode = false;
     this.currentRoomSelection = [];
     this.clearSelection(true);
-    this.refreshModelMaterials(); // Restore original colors
-    console.log("Mode: Creation Cancelled");
+    this.refreshModelMaterials();
   }
 }
