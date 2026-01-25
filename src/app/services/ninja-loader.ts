@@ -39,22 +39,36 @@ export class NinjaLoader {
     }
 
     const group = new THREE.Group();
-    
+
     // Transform vertices using the correct data object
     const vertices = this.getTransformedVertices(cityjsonData);
-    
+
+    // Build a set of parent IDs (objects that have children referencing them)
+    // CityJSON can define parent-child via: parent.children[] OR child.parents[]
+    const parentIds = new Set<string>();
+    Object.values(cityjsonData.CityObjects).forEach((obj: any) => {
+      // Check if this object has parents
+      if (obj.parents && Array.isArray(obj.parents)) {
+        obj.parents.forEach((parentId: string) => parentIds.add(parentId));
+      }
+    });
+
     // Load city objects from the correct data object
    Object.entries(cityjsonData.CityObjects).forEach(([id, obj]) => {
-      // 🛑 FIX: If an object has children, it's likely a container/envelope.
-      // We skip rendering it so we can see the detailed parts inside.
+      // Skip container objects that have children (either explicit or via parents reference)
+      // We skip these so we can see the detailed parts inside
       if (obj.children && obj.children.length > 0) {
-        return; 
+        return;
+      }
+      if (parentIds.has(id)) {
+        console.log(`[${id}] Skipping parent object (children will be rendered instead)`);
+        return;
       }
 
       const meshes = this.createObjectMeshes(id, obj, vertices, options);
       meshes.forEach(mesh => group.add(mesh));
     });
-    
+
     return group;
   }
   
