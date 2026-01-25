@@ -362,27 +362,88 @@ export class NinjaLoader {
   }
 
   private getColorForObject(cityObject: any): number {
+    // CityJSON object type color palette
     const palette: Record<string, number> = {
-      building: 0xffb347,
-      buildingpart: 0xffcc80,
-      buildingroom: 0xffe0b2,
-      genericcityobject: 0xb0bec5
+      // Buildings
+      building: 0xffb347,           // Orange
+      buildingpart: 0xffcc80,       // Light Orange
+      buildingroom: 0x64b5f6,       // Light Blue
+      buildinginstallation: 0xffab91, // Peach
+
+      // Transportation
+      road: 0x78909c,               // Blue Grey
+      railway: 0x5d4037,            // Brown
+      transportsquare: 0x90a4ae,    // Light Blue Grey
+
+      // Water & Terrain
+      waterbody: 0x4fc3f7,          // Cyan
+      tinrelief: 0xa5d6a7,          // Light Green
+
+      // Vegetation
+      plantcover: 0x66bb6a,         // Green
+      solitaryvegetationobject: 0x43a047, // Dark Green
+
+      // Land Use & Furniture
+      landuse: 0xdce775,            // Lime
+      cityfurniture: 0x7e57c2,      // Purple
+
+      // Bridges & Tunnels
+      bridge: 0xbcaaa4,             // Brown Grey
+      bridgepart: 0xd7ccc8,         // Light Brown Grey
+      bridgeinstallation: 0xa1887f, // Medium Brown
+      bridgeconstructionelement: 0x8d6e63, // Dark Brown
+      tunnel: 0x546e7a,             // Dark Blue Grey
+      tunnelpart: 0x607d8b,         // Blue Grey
+      tunnelinstallation: 0x455a64, // Darker Blue Grey
+
+      // Generic
+      genericcityobject: 0xb0bec5   // Light Grey
     };
     const key = String(cityObject?.type ?? '').toLowerCase();
     return palette[key] ?? 0xbdbdbd;
   }
 
 private getColorForSemantic(type: string): number {
+    // CityJSON semantic surface color palette
     const palette: Record<string, number> = {
-      GroundSurface: 0xbdbdbd, // Grey
-      WallSurface: 0x90a4ae,   // Blue-Grey
-      RoofSurface: 0xff7043,   // Orange-Red
-      
-      // 👇 ADD THESE TWO LINES 👇
-      FloorSurface: 0x81c784,  // Green (for floors)
-      CeilingSurface: 0xba68c8,// Purple (for ceilings)
-      
-      Default: 0xbdbdbd        // Fallback color
+      // Ground & Terrain
+      GroundSurface: 0x8d6e63,      // Brown
+
+      // Walls
+      WallSurface: 0xe0e0e0,        // Light Grey
+      InteriorWallSurface: 0xbdbdbd, // Medium Grey
+      OuterWallSurface: 0xeeeeee,   // Lighter Grey
+
+      // Roofs
+      RoofSurface: 0xef5350,        // Red
+      OuterRoofSurface: 0xe53935,   // Darker Red
+
+      // Floors & Ceilings
+      FloorSurface: 0xa1887f,       // Tan
+      OuterFloorSurface: 0x8d6e63, // Darker Tan
+      CeilingSurface: 0xf5f5f5,     // Off White
+      OuterCeilingSurface: 0xfafafa, // Almost White
+
+      // Openings
+      Window: 0x81d4fa,             // Light Blue (glass)
+      Door: 0x6d4c41,               // Dark Brown (wood)
+
+      // Closure & Other
+      ClosureSurface: 0xffcc80,     // Light Orange
+
+      // Water surfaces
+      WaterSurface: 0x29b6f6,       // Blue
+      WaterGroundSurface: 0x0288d1, // Dark Blue
+      WaterClosureSurface: 0x4fc3f7, // Light Cyan
+
+      // Traffic surfaces
+      TrafficArea: 0x757575,        // Dark Grey
+      AuxiliaryTrafficArea: 0x9e9e9e, // Medium Grey
+
+      // Vegetation
+      VegetationSurface: 0x81c784,  // Green
+
+      Default: 0xbdbdbd             // Fallback Grey
     };
     return palette[type] ?? palette['Default'];
   }
