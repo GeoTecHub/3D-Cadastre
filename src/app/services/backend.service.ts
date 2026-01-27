@@ -13,6 +13,11 @@ import {
   CityObjectRecord
 } from './cityjson.model';
 
+interface LoginResponse {
+  token: string;
+  [key: string]: any;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -21,11 +26,60 @@ export class BackendService {
   private readonly cityjsonUrl = `${environment.apiBaseUrl}/cityjson/`;
   private readonly cityobjectsUrl = `${environment.apiBaseUrl}/cityobjects/`;
 
+  private authToken: string | null = null;
+  private loginPromise: Promise<void> | null = null;
+
   constructor(private http: HttpClient) {}
+
+  // ─── Authentication ────────────────────────────────────────
+
+  /** Whether the service has a valid token. */
+  get isLoggedIn(): boolean {
+    return this.authToken !== null;
+  }
+
+  /** Log in to the backend and store the returned token. */
+  async login(): Promise<void> {
+    // If already logged in, skip
+    if (this.authToken) return;
+
+    // If a login is already in progress, wait for it
+    if (this.loginPromise) return this.loginPromise;
+
+    this.loginPromise = this.performLogin();
+    try {
+      await this.loginPromise;
+    } finally {
+      this.loginPromise = null;
+    }
+  }
+
+  private async performLogin(): Promise<void> {
+    const response = await firstValueFrom(
+      this.http.post<LoginResponse>(environment.loginUrl, {
+        username: environment.credentials.username,
+        password: environment.credentials.password
+      }).pipe(catchError(this.handleError))
+    );
+
+    // The backend may return the token in different fields
+    this.authToken = response.token || response['auth_token'] || response['key'];
+
+    if (!this.authToken) {
+      throw new Error('Login succeeded but no token was returned.');
+    }
+  }
+
+  /** Ensure we are logged in before making API calls. */
+  private async ensureAuth(): Promise<void> {
+    if (!this.authToken) {
+      await this.login();
+    }
+  }
 
   private get authHeaders(): HttpHeaders {
     return new HttpHeaders({
-      'Authorization': `token ${environment.apiToken}`,
+      'Authorization': `token ${this.authToken}`,
       'Content-Type': 'application/json'
     });
   }
@@ -34,6 +88,8 @@ export class BackendService {
 
   /** Save a CityJSON model to the backend. */
   async saveCityJSON(name: string, cityjsonData: CityJSON): Promise<CityJSONRecord> {
+    await this.ensureAuth();
+
     const payload: CityJSONSavePayload = {
       name,
       cityjson_data: cityjsonData
@@ -48,6 +104,8 @@ export class BackendService {
 
   /** List all saved CityJSON models. */
   async listCityJSON(): Promise<CityJSONRecord[]> {
+    await this.ensureAuth();
+
     return firstValueFrom(
       this.http.get<CityJSONRecord[]>(this.cityjsonUrl, {
         headers: this.authHeaders
@@ -57,6 +115,8 @@ export class BackendService {
 
   /** Get a specific CityJSON model by ID. */
   async getCityJSON(id: number): Promise<CityJSONRecord> {
+    await this.ensureAuth();
+
     return firstValueFrom(
       this.http.get<CityJSONRecord>(`${this.cityjsonUrl}${id}/`, {
         headers: this.authHeaders
@@ -66,6 +126,8 @@ export class BackendService {
 
   /** Delete a CityJSON model by ID. */
   async deleteCityJSON(id: number): Promise<void> {
+    await this.ensureAuth();
+
     return firstValueFrom(
       this.http.delete<void>(`${this.cityjsonUrl}${id}/`, {
         headers: this.authHeaders
@@ -81,6 +143,8 @@ export class BackendService {
     apartmentId: string,
     rooms: string[]
   ): Promise<CityObjectRecord> {
+    await this.ensureAuth();
+
     const payload: CityObjectSavePayload = {
       cityjson_record: cityjsonRecordId,
       apartment_id: apartmentId,
@@ -96,6 +160,8 @@ export class BackendService {
 
   /** List all saved apartments. Optionally filter by CityJSON record ID. */
   async listApartments(cityjsonRecordId?: number): Promise<CityObjectRecord[]> {
+    await this.ensureAuth();
+
     let url = this.cityobjectsUrl;
     if (cityjsonRecordId !== undefined) {
       url += `?cityjson_record=${cityjsonRecordId}`;
@@ -110,6 +176,8 @@ export class BackendService {
 
   /** Get a specific apartment by ID. */
   async getApartment(id: number): Promise<CityObjectRecord> {
+    await this.ensureAuth();
+
     return firstValueFrom(
       this.http.get<CityObjectRecord>(`${this.cityobjectsUrl}${id}/`, {
         headers: this.authHeaders
@@ -119,6 +187,8 @@ export class BackendService {
 
   /** Delete an apartment by ID. */
   async deleteApartment(id: number): Promise<void> {
+    await this.ensureAuth();
+
     return firstValueFrom(
       this.http.delete<void>(`${this.cityobjectsUrl}${id}/`, {
         headers: this.authHeaders
