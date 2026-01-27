@@ -66,6 +66,14 @@ export class CityjsonService {
   }
 
   /**
+   * Loads CityJSON data directly from an object (e.g. from a backend response).
+   * @param data The CityJSON data to load.
+   */
+  loadCityJSONData(data: CityJSON): void {
+    this._cityjsonData.next(data);
+  }
+
+  /**
    * A simple getter for the current value, for non-reactive use cases.
    * @returns The current CityJSON data or null.
    */

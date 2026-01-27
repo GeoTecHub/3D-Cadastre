@@ -1,6 +1,8 @@
 // Path: src/environments/environment.prod.ts
+// WARNING: Never commit real API tokens to version control!
 
 export const environment = {
   production: true,
-  apiToken: 'YOUR_REAL_PRODUCTION_API_TOKEN_HERE' // This is your live, secret token
+  apiToken: 'PLACEHOLDER_TOKEN',
+  apiBaseUrl: 'https://infobhoomiback.geoinfobox.com/api/user'
 };
