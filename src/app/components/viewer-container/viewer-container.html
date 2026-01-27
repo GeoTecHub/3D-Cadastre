@@ -12,12 +12,53 @@
     </label>
     <button class="ghost" type="button" (click)="reloadDefaultModel()">Load Sample Model</button>
 
+    <!-- Backend Actions -->
+    <div class="backend-actions">
+      <p class="eyebrow">Backend</p>
+      <div class="button-row">
+        <button class="ghost" type="button" (click)="saveModelToBackend()" [disabled]="isSaving() || !cityjson()">
+          {{ isSaving() ? 'Saving...' : 'Save Model' }}
+        </button>
+        <button class="ghost" type="button" (click)="toggleModelList()">
+          {{ showModelList() ? 'Hide List' : 'Load from Server' }}
+        </button>
+      </div>
+
+      @if (currentRecordId()) {
+        <div class="status selection">
+          Backend ID: <strong>{{ currentRecordId() }}</strong>
+        </div>
+      }
+    </div>
+
+    <!-- Saved Models List -->
+    @if (showModelList()) {
+      <div class="model-list">
+        <p class="eyebrow">Saved Models</p>
+        @if (savedModels().length === 0) {
+          <p class="tree-placeholder">No saved models found.</p>
+        }
+        @for (model of savedModels(); track model.id) {
+          <button class="model-item" type="button" (click)="loadModelFromBackend(model)">
+            <span class="model-name">{{ model.name }}</span>
+            <span class="model-id">ID: {{ model.id }}</span>
+          </button>
+        }
+      </div>
+    }
+
     @if (isLoading()) {
-      <div class="status">Loading model…</div>
+      <div class="status">Loading model...</div>
     }
 
     @if (loadError()) {
       <div class="status error">{{ loadError() }}</div>
+    }
+
+    @if (saveStatus()) {
+      <div class="status" [class.error]="saveStatus()!.startsWith('Failed') || saveStatus()!.startsWith('Save the model')">
+        {{ saveStatus() }}
+      </div>
     }
 
     @if (selectedObjectId()) {
@@ -63,11 +104,12 @@
     </div>
 
     <div class="viewer-stage">
-      
+
       @if (activeViewer() === 'ninja') {
         <app-ninja-viewer
           [focusObjectId]="selectedObjectId()"
-          (objectSelected)="onSelectionChange($event)">
+          (objectSelected)="onSelectionChange($event)"
+          (apartmentCreated)="onApartmentCreated($event)">
         </app-ninja-viewer>
       }
 
@@ -84,7 +126,7 @@
 
       @if (isLoading()) {
         <div class="stage-placeholder loading">
-          <h3>Preparing scene…</h3>
+          <h3>Preparing scene...</h3>
           <p>This usually takes only a few seconds.</p>
         </div>
       }

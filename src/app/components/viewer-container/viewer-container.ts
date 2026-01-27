@@ -1,59 +1,65 @@
-import { Component, Inject, PLATFORM_ID, signal, effect,inject } from '@angular/core';
+import { Component, Inject, PLATFORM_ID, signal, effect, inject } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
-import { toSignal } from '@angular/core/rxjs-interop'; // 👈 Vital for Angular 20
+import { toSignal } from '@angular/core/rxjs-interop';
 import { CityjsonService } from '../../services/cityjson';
+import { BackendService } from '../../services/backend.service';
 import { CityobjectsTree } from '../cityobjects-tree/cityobjects-tree';
 import { NinjaViewer } from '../viewers/ninja-viewer/ninja-viewer';
+import { Apartment, CityJSONRecord } from '../../services/cityjson.model';
 
 type ViewerType = 'ninja' | 'threejs';
 
 @Component({
   selector: 'app-viewer-container',
   standalone: true,
-  imports: [CommonModule, CityobjectsTree, NinjaViewer], // Add ThreejsViewer here if needed
+  imports: [CommonModule, CityobjectsTree, NinjaViewer],
   templateUrl: './viewer-container.html',
   styleUrls: ['./viewer-container.css']
 })
 export class ViewerContainer {
   private readonly cityjsonService = inject(CityjsonService);
-  // 1. Convert Observable to Signal. 'requireSync' is false by default, so it starts undefined.
-  // This automatically handles subscription/unsubscription.
+  private readonly backendService = inject(BackendService);
+
   cityjson = toSignal(this.cityjsonService.cityjsonData$);
 
-  // 2. Use Signals for local state
+  // Local state signals
   activeViewer = signal<ViewerType>('ninja');
   isLoading = signal(false);
+  isSaving = signal(false);
   loadError = signal<string | null>(null);
+  saveStatus = signal<string | null>(null);
   selectedObjectId = signal<string | null>(null);
+  savedModels = signal<CityJSONRecord[]>([]);
+  showModelList = signal(false);
+
+  // Track the backend record ID for the currently loaded model
+  currentRecordId = signal<number | null>(null);
 
   private readonly defaultModelUrl = '/lod2_appartment.city.json';
   private readonly isBrowser: boolean;
 
   constructor(
-    
     @Inject(PLATFORM_ID) platformId: object
   ) {
     this.isBrowser = isPlatformBrowser(platformId);
 
-    // Load default model on startup (browser only)
     if (this.isBrowser) {
       this.loadDefaultModel();
     }
-    
-    // Automatic Reset: If cityjson becomes null, clear selection
+
     effect(() => {
-        if (!this.cityjson()) {
-            this.selectedObjectId.set(null);
-        }
+      if (!this.cityjson()) {
+        this.selectedObjectId.set(null);
+        this.currentRecordId.set(null);
+      }
     });
   }
-
-  // No ngOnInit or ngOnDestroy needed!
 
   async onFileSelected(event: Event): Promise<void> {
     if (!this.isBrowser) return;
 
     this.loadError.set(null);
+    this.currentRecordId.set(null);
     const input = event.target as HTMLInputElement;
 
     if (!input.files?.length) return;
@@ -63,7 +69,6 @@ export class ViewerContainer {
 
     try {
       await this.cityjsonService.loadCityJSONFromFile(file);
-      // Logic for success is handled by the cityjson signal updating automatically
     } catch (error) {
       this.loadError.set(error instanceof Error ? error.message : 'Could not read file.');
     } finally {
@@ -77,18 +82,105 @@ export class ViewerContainer {
   }
 
   async reloadDefaultModel(): Promise<void> {
+    this.currentRecordId.set(null);
     await this.loadDefaultModel();
   }
 
-  // Update signal value
   onSelectionChange(objectId: string): void {
-    // If empty string comes in, treat as null
     this.selectedObjectId.set(objectId || null);
+  }
+
+  // ─── Backend: Save Model ───────────────────────────────────
+
+  async saveModelToBackend(): Promise<void> {
+    const data = this.cityjsonService.getCityJSONSnapshot();
+    if (!data) {
+      this.saveStatus.set('No model loaded to save.');
+      return;
+    }
+
+    this.isSaving.set(true);
+    this.saveStatus.set(null);
+
+    try {
+      const modelName = `CityJSON_${new Date().toISOString().slice(0, 19)}`;
+      const record = await this.backendService.saveCityJSON(modelName, data);
+      this.currentRecordId.set(record.id);
+      this.saveStatus.set(`Model saved (ID: ${record.id})`);
+    } catch (error) {
+      this.saveStatus.set(error instanceof Error ? error.message : 'Failed to save model.');
+    } finally {
+      this.isSaving.set(false);
+    }
+  }
+
+  // ─── Backend: List & Load Models ───────────────────────────
+
+  async toggleModelList(): Promise<void> {
+    if (this.showModelList()) {
+      this.showModelList.set(false);
+      return;
+    }
+
+    this.isLoading.set(true);
+    this.loadError.set(null);
+
+    try {
+      const models = await this.backendService.listCityJSON();
+      this.savedModels.set(models);
+      this.showModelList.set(true);
+    } catch (error) {
+      this.loadError.set(error instanceof Error ? error.message : 'Failed to fetch models.');
+    } finally {
+      this.isLoading.set(false);
+    }
+  }
+
+  async loadModelFromBackend(record: CityJSONRecord): Promise<void> {
+    this.isLoading.set(true);
+    this.loadError.set(null);
+    this.showModelList.set(false);
+
+    try {
+      const fullRecord = await this.backendService.getCityJSON(record.id);
+      this.cityjsonService.loadCityJSONData(fullRecord.cityjson_data);
+      this.currentRecordId.set(fullRecord.id);
+    } catch (error) {
+      this.loadError.set(error instanceof Error ? error.message : 'Failed to load model.');
+    } finally {
+      this.isLoading.set(false);
+    }
+  }
+
+  // ─── Backend: Save Apartment ───────────────────────────────
+
+  async onApartmentCreated(apartment: Apartment): Promise<void> {
+    const recordId = this.currentRecordId();
+    if (!recordId) {
+      this.saveStatus.set('Save the model first before saving apartments.');
+      return;
+    }
+
+    this.isSaving.set(true);
+    this.saveStatus.set(null);
+
+    try {
+      const saved = await this.backendService.saveApartment(
+        recordId,
+        apartment.apartment_id,
+        apartment.rooms
+      );
+      this.saveStatus.set(`Apartment "${apartment.apartment_id}" saved (ID: ${saved.id})`);
+    } catch (error) {
+      this.saveStatus.set(error instanceof Error ? error.message : 'Failed to save apartment.');
+    } finally {
+      this.isSaving.set(false);
+    }
   }
 
   private async loadDefaultModel(): Promise<void> {
     if (!this.isBrowser) return;
-    
+
     this.isLoading.set(true);
     this.loadError.set(null);
     try {
@@ -96,7 +188,7 @@ export class ViewerContainer {
     } catch {
       this.loadError.set('Could not load the sample model.');
     } finally {
-        this.isLoading.set(false);
+      this.isLoading.set(false);
     }
   }
 }

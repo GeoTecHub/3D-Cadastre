@@ -5,5 +5,6 @@
 export const environment = {
   production: false,
   // Replace with your actual token before running locally
-  apiToken: 'PLACEHOLDER_TOKEN'
+  apiToken: 'PLACEHOLDER_TOKEN',
+  apiBaseUrl: 'https://infobhoomiback.geoinfobox.com/api/user'
 };

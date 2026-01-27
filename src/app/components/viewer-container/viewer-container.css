@@ -232,6 +232,74 @@
   max-width: 300px;
 }
 
+/* Backend Actions Section */
+.backend-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.backend-actions .button-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.backend-actions .button-row .ghost {
+  flex: 1;
+  padding: 0.7rem 0.75rem;
+  font-size: 0.85rem;
+}
+
+.ghost:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Saved Models List */
+.model-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 200px;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.model-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.5);
+  color: #e2e8f0;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.15s ease;
+}
+
+.model-item:hover {
+  background: rgba(79, 70, 229, 0.15);
+  border-color: rgba(79, 70, 229, 0.4);
+}
+
+.model-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-id {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  flex-shrink: 0;
+  margin-left: 0.5rem;
+}
+
 @media (max-width: 1024px) {
   :host {
     padding: 1.5rem;

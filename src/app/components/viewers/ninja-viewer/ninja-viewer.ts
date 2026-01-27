@@ -8,6 +8,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 import { NinjaLoader } from 'src/app/services/ninja-loader';
 import { CityjsonService } from 'src/app/services/cityjson';
+import { Apartment } from 'src/app/services/cityjson.model';
 import { toSignal } from '@angular/core/rxjs-interop';
 
 @Component({
@@ -43,6 +44,7 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
   // --- MODERN SIGNALS ---
   focusObjectId = input<string | null>(null);
   objectSelected = output<string>();
+  apartmentCreated = output<Apartment>();
   private cityjsonService = inject(CityjsonService);
   // Convert Service Observable to Signal
   cityData = toSignal(this.cityjsonService.cityjsonData$);
@@ -661,10 +663,14 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
       return;
     }
 
-    this.apartmentRegistry.set(trimmedId, [...this.currentRoomSelection]);
-    this.currentRoomSelection.forEach(roomId => {
+    const rooms = [...this.currentRoomSelection];
+    this.apartmentRegistry.set(trimmedId, rooms);
+    rooms.forEach(roomId => {
       this.roomToApartmentMap.set(roomId, trimmedId);
     });
+
+    // Emit apartment data so the parent can save it to the backend
+    this.apartmentCreated.emit({ apartment_id: trimmedId, rooms });
 
     // Reset State
     this.currentRoomSelection = [];
