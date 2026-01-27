@@ -6,5 +6,6 @@ export const environment = {
   production: false,
   // Replace with your actual token before running locally
   apiToken: 'PLACEHOLDER_TOKEN',
-  apiBaseUrl: 'https://infobhoomiback.geoinfobox.com/api/user'
+  // In development, requests are proxied via angular dev server to avoid CORS
+  apiBaseUrl: '/api/user'
 };
