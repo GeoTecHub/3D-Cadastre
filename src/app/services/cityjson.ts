@@ -1,9 +1,8 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpHeaders, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { BehaviorSubject, firstValueFrom, Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { CityJSON } from './cityjson.model';
-import {environment} from '../../environment/environment';
 
 
 @Injectable({
@@ -18,33 +17,6 @@ export class CityjsonService {
   readonly cityjsonData$: Observable<CityJSON | null> = this._cityjsonData.asObservable();
 
   constructor(private http: HttpClient) {}
-
-  /**
-   * Fetches CityJSON data from a protected API.
-   * @param apiUrl The full URL to the API endpoint.
-   * @returns A promise that resolves when the data is fetched.
-   */
-  async getCityJSONFromApi(apiUrl: string): Promise<void> {
-    const headers = new HttpHeaders({
-      // Use the token from the environment file.
-      'Authorization': `token ${environment.apiToken}`,
-    });
-
-    try {
-      // Use firstValueFrom for modern async/await syntax with Observables.
-      const data = await firstValueFrom(
-        this.http.get<CityJSON>(apiUrl, { headers }).pipe(
-          catchError(this.handleError) // Centralized error handling
-        )
-      );
-      // Update the BehaviorSubject with the new data.
-      this._cityjsonData.next(data);
-    } catch (error) {
-      console.error('Failed to fetch CityJSON from API:', error);
-      // Optionally update state to reflect the error
-      this._cityjsonData.next(null);
-    }
-  }
 
   /**
    * Loads CityJSON data from a public URL.(this is good for fetching the file from saved data)
