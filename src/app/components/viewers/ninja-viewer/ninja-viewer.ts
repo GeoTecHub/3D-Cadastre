@@ -76,6 +76,11 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
   private pointerIsDown = false;
   private pointerDownPos = new THREE.Vector2();
 
+  // Explode view state
+  private isExploded = false;
+  private originalPositions = new Map<string, THREE.Vector3>();
+  private static readonly EXPLODE_DISTANCE = 15;
+
   // 💡 NEW: Define Materials for Creation Mode
   private readonly structuralSolidMaterial = new THREE.MeshStandardMaterial({
     color: 0x00ff00, // Explicit Green for Rooms
@@ -684,5 +689,114 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     this.currentRoomSelection = [];
     this.clearSelection(true);
     this.refreshModelMaterials();
+  }
+
+  // ─── Explode View ───────────────────────────────────────────
+
+  public toggleExplodeView(): void {
+    if (this.isExploded) {
+      this.collapseView();
+    } else {
+      this.explodeView();
+    }
+  }
+
+  public get isExplodeViewActive(): boolean {
+    return this.isExploded;
+  }
+
+  private explodeView(): void {
+    if (!this.cityModel || this.isExploded) return;
+
+    // Calculate center of the model
+    const box = new THREE.Box3().setFromObject(this.cityModel);
+    const center = box.getCenter(new THREE.Vector3());
+
+    // Store original positions and explode meshes
+    this.cityModel.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        const objectId = child.userData['objectId'];
+        if (!objectId) return;
+
+        // Store original position if not already stored
+        if (!this.originalPositions.has(child.uuid)) {
+          this.originalPositions.set(child.uuid, child.position.clone());
+        }
+
+        // Calculate direction from center to mesh
+        const meshCenter = new THREE.Vector3();
+        child.geometry.computeBoundingBox();
+        child.geometry.boundingBox?.getCenter(meshCenter);
+        child.localToWorld(meshCenter);
+
+        const direction = meshCenter.sub(center).normalize();
+
+        // Determine explosion distance based on object type
+        const cityObjType = child.userData['cityObjectType'];
+        let distance = NinjaViewer.EXPLODE_DISTANCE;
+
+        // Rooms/BuildingRooms explode more
+        if (cityObjType === 'BuildingRoom' || cityObjType === 'Room') {
+          distance *= 1.5;
+        }
+        // Walls explode less
+        else if (cityObjType === 'WallSurface') {
+          distance *= 0.8;
+        }
+        // Roof explodes upward more
+        else if (cityObjType === 'RoofSurface') {
+          direction.set(0, 0, 1); // Explode upward
+          distance *= 2;
+        }
+        // Ground stays in place
+        else if (cityObjType === 'GroundSurface') {
+          distance = 0;
+        }
+
+        // Animate the explosion using simple transition
+        const targetPosition = child.position.clone().add(direction.multiplyScalar(distance));
+        this.animateToPosition(child, targetPosition);
+      }
+    });
+
+    this.isExploded = true;
+  }
+
+  private collapseView(): void {
+    if (!this.cityModel || !this.isExploded) return;
+
+    // Restore original positions
+    this.cityModel.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        const originalPos = this.originalPositions.get(child.uuid);
+        if (originalPos) {
+          this.animateToPosition(child, originalPos);
+        }
+      }
+    });
+
+    this.isExploded = false;
+  }
+
+  private animateToPosition(mesh: THREE.Mesh, targetPosition: THREE.Vector3): void {
+    const startPosition = mesh.position.clone();
+    const duration = 500; // ms
+    const startTime = performance.now();
+
+    const animate = () => {
+      const elapsed = performance.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+
+      // Ease out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+
+      mesh.position.lerpVectors(startPosition, targetPosition, eased);
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      }
+    };
+
+    requestAnimationFrame(animate);
   }
 }
