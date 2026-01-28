@@ -1,24 +1,28 @@
-import { Component, Inject, PLATFORM_ID, signal, effect, inject } from '@angular/core';
+import { Component, Inject, PLATFORM_ID, signal, effect, inject, ViewChild, computed } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { CityjsonService } from '../../services/cityjson';
 import { BackendService } from '../../services/backend.service';
 import { CityobjectsTree } from '../cityobjects-tree/cityobjects-tree';
 import { NinjaViewer } from '../viewers/ninja-viewer/ninja-viewer';
+import { BuildingInfoPanel } from '../building-info-panel/building-info-panel';
 import { Apartment, CityJSONRecord } from '../../services/cityjson.model';
+import { BuildingInfo, extractBuildingInfo } from '../../models/building-info.model';
 
 type ViewerType = 'ninja' | 'threejs';
 
 @Component({
   selector: 'app-viewer-container',
   standalone: true,
-  imports: [CommonModule, CityobjectsTree, NinjaViewer],
+  imports: [CommonModule, CityobjectsTree, NinjaViewer, BuildingInfoPanel],
   templateUrl: './viewer-container.html',
   styleUrls: ['./viewer-container.css']
 })
 export class ViewerContainer {
   private readonly cityjsonService = inject(CityjsonService);
   private readonly backendService = inject(BackendService);
+
+  @ViewChild(NinjaViewer) ninjaViewer!: NinjaViewer;
 
   cityjson = toSignal(this.cityjsonService.cityjsonData$);
 
@@ -31,9 +35,18 @@ export class ViewerContainer {
   selectedObjectId = signal<string | null>(null);
   savedModels = signal<CityJSONRecord[]>([]);
   showModelList = signal(false);
+  showLeftPanel = signal(true);
+  isExplodeView = signal(false);
 
   // Track the backend record ID for the currently loaded model
   currentRecordId = signal<number | null>(null);
+
+  // Building info computed from cityjson
+  buildingInfo = computed<BuildingInfo | null>(() => {
+    const data = this.cityjson();
+    if (!data) return null;
+    return extractBuildingInfo(data, this.selectedObjectId() || undefined);
+  });
 
   private readonly defaultModelUrl = '/lod2_appartment.city.json';
   private readonly isBrowser: boolean;
@@ -51,6 +64,16 @@ export class ViewerContainer {
       if (!this.cityjson()) {
         this.selectedObjectId.set(null);
         this.currentRecordId.set(null);
+      }
+    });
+
+    // Auto-clear save status after 3 seconds
+    effect(() => {
+      const status = this.saveStatus();
+      if (status) {
+        setTimeout(() => {
+          this.saveStatus.set(null);
+        }, 3000);
       }
     });
   }
@@ -88,6 +111,36 @@ export class ViewerContainer {
 
   onSelectionChange(objectId: string): void {
     this.selectedObjectId.set(objectId || null);
+  }
+
+  toggleLeftPanel(): void {
+    this.showLeftPanel.update(v => !v);
+  }
+
+  // ─── Apartment Creation Mode ────────────────────────────────
+
+  startApartmentCreation(): void {
+    if (this.ninjaViewer) {
+      this.ninjaViewer.startApartmentCreationMode();
+    }
+  }
+
+  // ─── Explode View ───────────────────────────────────────────
+
+  onExplodeViewRequested(): void {
+    this.isExplodeView.update(v => !v);
+    // Explode view logic will be implemented in the viewer
+    if (this.ninjaViewer && 'toggleExplodeView' in this.ninjaViewer) {
+      (this.ninjaViewer as any).toggleExplodeView?.();
+    }
+  }
+
+  onUnitSelected(unitId: string): void {
+    this.selectedObjectId.set(unitId);
+    // Focus on the unit in the 3D viewer
+    if (this.ninjaViewer) {
+      // The viewer will react to focusObjectId input change
+    }
   }
 
   // ─── Backend: Save Model ───────────────────────────────────

@@ -1,0 +1,468 @@
+<div class="info-panel">
+  <div class="panel-header">
+    <h2>Building Details</h2>
+  </div>
+
+  @if (!hasBuilding()) {
+    <div class="empty-state">
+      <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M3 21h18M3 7v14M21 7v14M6 11h.01M6 15h.01M6 19h.01M10 11h.01M10 15h.01M10 19h.01M14 11h.01M14 15h.01M14 19h.01M18 11h.01M18 15h.01M18 19h.01M9 3h6l3 4H6l3-4z"/>
+      </svg>
+      <p>Select a building to view details</p>
+    </div>
+  } @else {
+    <div class="panel-content">
+      <!-- Summary & Administrative Section -->
+      <div class="collapsible-section">
+        <button
+          class="section-header"
+          [class.expanded]="isSectionExpanded('summary')"
+          (click)="toggleSection('summary')">
+          <span class="section-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+              <polyline points="10 9 9 9 8 9"/>
+            </svg>
+          </span>
+          <span class="section-title">Summary & Administrative</span>
+          <span class="chevron">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </span>
+        </button>
+        @if (isSectionExpanded('summary')) {
+          <div class="section-content">
+            <table class="info-table">
+              <tr>
+                <td class="label">Building ID</td>
+                <td class="value">{{ buildingInfo()?.summary?.buildingId || 'N/A' }}</td>
+              </tr>
+              <tr>
+                <td class="label">Legal Status</td>
+                <td class="value">
+                  <span class="badge badge-success">{{ buildingInfo()?.summary?.legalStatus || 'N/A' }}</span>
+                </td>
+              </tr>
+              <tr>
+                <td class="label">Address</td>
+                <td class="value">{{ buildingInfo()?.summary?.address || 'N/A' }}</td>
+              </tr>
+              <tr>
+                <td class="label">Primary Use</td>
+                <td class="value">{{ buildingInfo()?.summary?.primaryUse || 'N/A' }}</td>
+              </tr>
+              <tr>
+                <td class="label">Cadastral Ref.</td>
+                <td class="value">{{ buildingInfo()?.summary?.cadastralReference || 'N/A' }}</td>
+              </tr>
+              <tr>
+                <td class="label">Floors</td>
+                <td class="value">{{ buildingInfo()?.summary?.numberOfFloors || 'N/A' }}</td>
+              </tr>
+              <tr>
+                <td class="label">Registration Date</td>
+                <td class="value">{{ buildingInfo()?.summary?.registrationDate || 'N/A' }}</td>
+              </tr>
+              <tr>
+                <td class="label">Last Updated</td>
+                <td class="value">{{ buildingInfo()?.summary?.lastUpdated || 'N/A' }}</td>
+              </tr>
+            </table>
+          </div>
+        }
+      </div>
+
+      <!-- Spatial/Geometric (3D) Section -->
+      <div class="collapsible-section">
+        <button
+          class="section-header"
+          [class.expanded]="isSectionExpanded('spatial')"
+          (click)="toggleSection('spatial')">
+          <span class="section-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+              <line x1="12" y1="22.08" x2="12" y2="12"/>
+            </svg>
+          </span>
+          <span class="section-title">Spatial/Geometric (3D)</span>
+          <span class="chevron">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </span>
+        </button>
+        @if (isSectionExpanded('spatial')) {
+          <div class="section-content">
+            <table class="info-table">
+              <tr>
+                <td class="label">Footprint</td>
+                <td class="value">{{ buildingInfo()?.spatial?.footprint || 'N/A' }}</td>
+              </tr>
+              <tr>
+                <td class="label">Solid Geometry</td>
+                <td class="value">{{ buildingInfo()?.spatial?.solidGeometry || 'N/A' }}</td>
+              </tr>
+              <tr>
+                <td class="label">Bounded By</td>
+                <td class="value">
+                  @if (buildingInfo()?.spatial?.boundedBy?.length) {
+                    <span class="tag-list">
+                      @for (surface of buildingInfo()?.spatial?.boundedBy; track surface) {
+                        <span class="tag">{{ surface }}</span>
+                      }
+                    </span>
+                  } @else {
+                    N/A
+                  }
+                </td>
+              </tr>
+              <tr>
+                <td class="label">Height Above Ground</td>
+                <td class="value">{{ formatHeight(buildingInfo()?.spatial?.heightAboveGround) }}</td>
+              </tr>
+              <tr>
+                <td class="label">Volume</td>
+                <td class="value">{{ formatVolume(buildingInfo()?.spatial?.volume) }}</td>
+              </tr>
+              <tr>
+                <td class="label">Surface Area</td>
+                <td class="value">{{ formatArea(buildingInfo()?.spatial?.surfaceArea) }}</td>
+              </tr>
+              <tr>
+                <td class="label">Coordinate System</td>
+                <td class="value">{{ buildingInfo()?.spatial?.coordinateSystem || 'N/A' }}</td>
+              </tr>
+              <tr>
+                <td class="label">LoD Level</td>
+                <td class="value">
+                  <span class="badge badge-info">{{ buildingInfo()?.spatial?.lodLevel || 'N/A' }}</span>
+                </td>
+              </tr>
+            </table>
+          </div>
+        }
+      </div>
+
+      <!-- Rights, Restrictions & Responsibilities Section -->
+      <div class="collapsible-section">
+        <button
+          class="section-header"
+          [class.expanded]="isSectionExpanded('rrr')"
+          (click)="toggleSection('rrr')">
+          <span class="section-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </span>
+          <span class="section-title">Rights, Restrictions & Responsibilities</span>
+          <span class="chevron">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </span>
+        </button>
+        @if (isSectionExpanded('rrr')) {
+          <div class="section-content">
+            <!-- Tabs -->
+            <div class="tab-bar">
+              <button
+                class="tab-btn"
+                [class.active]="activeRRRTab() === 'ownership'"
+                (click)="setRRRTab('ownership')">
+                Ownership
+              </button>
+              <button
+                class="tab-btn"
+                [class.active]="activeRRRTab() === 'restrictions'"
+                (click)="setRRRTab('restrictions')">
+                Restrictions
+              </button>
+            </div>
+
+            @if (activeRRRTab() === 'ownership') {
+              <div class="tab-content">
+                @if (buildingInfo()?.rrr?.ownership?.length) {
+                  @for (owner of buildingInfo()?.rrr?.ownership; track owner.registrationNumber) {
+                    <div class="rrr-card">
+                      <div class="rrr-header">
+                        <span class="owner-name">{{ owner.ownerName }}</span>
+                        <span class="badge badge-primary">{{ owner.ownershipType }}</span>
+                      </div>
+                      <table class="info-table compact">
+                        <tr>
+                          <td class="label">Share</td>
+                          <td class="value">{{ owner.sharePercentage }}%</td>
+                        </tr>
+                        <tr>
+                          <td class="label">Reg. Number</td>
+                          <td class="value">{{ owner.registrationNumber }}</td>
+                        </tr>
+                        <tr>
+                          <td class="label">Reg. Date</td>
+                          <td class="value">{{ owner.registrationDate }}</td>
+                        </tr>
+                      </table>
+                    </div>
+                  }
+                } @else {
+                  <p class="empty-message">No ownership records found</p>
+                }
+              </div>
+            }
+
+            @if (activeRRRTab() === 'restrictions') {
+              <div class="tab-content">
+                @if (buildingInfo()?.rrr?.restrictions?.length) {
+                  @for (restriction of buildingInfo()?.rrr?.restrictions; track restriction.type) {
+                    <div class="rrr-card restriction">
+                      <div class="rrr-header">
+                        <span class="restriction-type">{{ restriction.type }}</span>
+                      </div>
+                      <p class="restriction-desc">{{ restriction.description }}</p>
+                      <table class="info-table compact">
+                        <tr>
+                          <td class="label">Registered By</td>
+                          <td class="value">{{ restriction.registeredBy }}</td>
+                        </tr>
+                        <tr>
+                          <td class="label">Effective</td>
+                          <td class="value">{{ restriction.effectiveDate }}</td>
+                        </tr>
+                        @if (restriction.expiryDate) {
+                          <tr>
+                            <td class="label">Expires</td>
+                            <td class="value">{{ restriction.expiryDate }}</td>
+                          </tr>
+                        }
+                      </table>
+                    </div>
+                  }
+                } @else {
+                  <p class="empty-message">No restrictions recorded</p>
+                }
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- Building Units / Strata Section -->
+      <div class="collapsible-section">
+        <button
+          class="section-header"
+          [class.expanded]="isSectionExpanded('units')"
+          (click)="toggleSection('units')">
+          <span class="section-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="7" height="7"/>
+              <rect x="14" y="3" width="7" height="7"/>
+              <rect x="14" y="14" width="7" height="7"/>
+              <rect x="3" y="14" width="7" height="7"/>
+            </svg>
+          </span>
+          <span class="section-title">Building Units / Strata</span>
+          <span class="unit-count">{{ buildingInfo()?.units?.length || 0 }}</span>
+          <span class="chevron">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </span>
+        </button>
+        @if (isSectionExpanded('units')) {
+          <div class="section-content">
+            <button class="explode-btn" (click)="onExplodeView()">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+              </svg>
+              Explode View
+            </button>
+
+            <div class="units-list">
+              @if (buildingInfo()?.units?.length) {
+                @for (unit of buildingInfo()?.units; track unit.unitId) {
+                  <button
+                    class="unit-item"
+                    [class.selected]="selectedUnit()?.unitId === unit.unitId"
+                    (click)="selectUnit(unit)">
+                    <div class="unit-main">
+                      <span class="unit-id">{{ unit.unitId }}</span>
+                      <span class="unit-type">{{ unit.unitType }}</span>
+                    </div>
+                    <div class="unit-meta">
+                      <span class="unit-floor">Floor {{ unit.floor }}</span>
+                      <span class="unit-status" [class]="getStatusClass(unit.status)">
+                        {{ unit.status }}
+                      </span>
+                    </div>
+                  </button>
+                }
+              } @else {
+                <p class="empty-message">No units defined</p>
+              }
+            </div>
+
+            <!-- Selected Unit Details -->
+            @if (selectedUnit()) {
+              <div class="unit-details">
+                <h4>Unit Details</h4>
+                <table class="info-table compact">
+                  <tr>
+                    <td class="label">Unit ID</td>
+                    <td class="value">{{ selectedUnit()?.unitId }}</td>
+                  </tr>
+                  <tr>
+                    <td class="label">Type</td>
+                    <td class="value">{{ selectedUnit()?.unitType }}</td>
+                  </tr>
+                  <tr>
+                    <td class="label">Floor</td>
+                    <td class="value">{{ selectedUnit()?.floor }}</td>
+                  </tr>
+                  <tr>
+                    <td class="label">Area</td>
+                    <td class="value">{{ formatArea(selectedUnit()?.area) }}</td>
+                  </tr>
+                  <tr>
+                    <td class="label">Status</td>
+                    <td class="value">
+                      <span class="badge" [class]="getStatusClass(selectedUnit()?.status || '')">
+                        {{ selectedUnit()?.status }}
+                      </span>
+                    </td>
+                  </tr>
+                  @if (selectedUnit()?.ownerName) {
+                    <tr>
+                      <td class="label">Owner</td>
+                      <td class="value">{{ selectedUnit()?.ownerName }}</td>
+                    </tr>
+                  }
+                </table>
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- Physical Attributes Section -->
+      <div class="collapsible-section">
+        <button
+          class="section-header"
+          [class.expanded]="isSectionExpanded('physical')"
+          (click)="toggleSection('physical')">
+          <span class="section-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+            </svg>
+          </span>
+          <span class="section-title">Physical Attributes</span>
+          <span class="chevron">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </span>
+        </button>
+        @if (isSectionExpanded('physical')) {
+          <div class="section-content">
+            <table class="info-table">
+              <tr>
+                <td class="label">Building Function</td>
+                <td class="value">{{ buildingInfo()?.physicalAttributes?.buildingFunction || 'N/A' }}</td>
+              </tr>
+              <tr>
+                <td class="label">Number of Floors</td>
+                <td class="value">{{ buildingInfo()?.physicalAttributes?.numberOfFloors || 'N/A' }}</td>
+              </tr>
+              <tr>
+                <td class="label">Gross Floor Area</td>
+                <td class="value">{{ formatArea(buildingInfo()?.physicalAttributes?.grossFloorArea) }}</td>
+              </tr>
+              <tr>
+                <td class="label">Construction Year</td>
+                <td class="value">{{ buildingInfo()?.physicalAttributes?.constructionYear || 'N/A' }}</td>
+              </tr>
+              <tr>
+                <td class="label">Roof Type</td>
+                <td class="value">{{ buildingInfo()?.physicalAttributes?.roofType || 'N/A' }}</td>
+              </tr>
+              <tr>
+                <td class="label">Wall Material</td>
+                <td class="value">{{ buildingInfo()?.physicalAttributes?.wallMaterial || 'N/A' }}</td>
+              </tr>
+              <tr>
+                <td class="label">Foundation Type</td>
+                <td class="value">{{ buildingInfo()?.physicalAttributes?.foundationType || 'N/A' }}</td>
+              </tr>
+              @if (buildingInfo()?.physicalAttributes?.energyRating) {
+                <tr>
+                  <td class="label">Energy Rating</td>
+                  <td class="value">
+                    <span class="badge badge-success">{{ buildingInfo()?.physicalAttributes?.energyRating }}</span>
+                  </td>
+                </tr>
+              }
+            </table>
+          </div>
+        }
+      </div>
+
+      <!-- Tax & Valuation Section (only if data exists) -->
+      @if (buildingInfo()?.taxValuation) {
+        <div class="collapsible-section">
+          <button
+            class="section-header"
+            [class.expanded]="false"
+            (click)="toggleSection('physical')">
+            <span class="section-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="1" x2="12" y2="23"/>
+                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+              </svg>
+            </span>
+            <span class="section-title">Tax & Valuation</span>
+            <span class="chevron">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </span>
+          </button>
+          <div class="section-content">
+            <table class="info-table">
+              <tr>
+                <td class="label">Assessed Value</td>
+                <td class="value">{{ formatCurrency(buildingInfo()?.taxValuation?.assessedValue) }}</td>
+              </tr>
+              <tr>
+                <td class="label">Market Value</td>
+                <td class="value">{{ formatCurrency(buildingInfo()?.taxValuation?.marketValue) }}</td>
+              </tr>
+              <tr>
+                <td class="label">Annual Tax</td>
+                <td class="value">{{ formatCurrency(buildingInfo()?.taxValuation?.annualTax) }}</td>
+              </tr>
+              <tr>
+                <td class="label">Last Assessment</td>
+                <td class="value">{{ buildingInfo()?.taxValuation?.lastAssessmentDate }}</td>
+              </tr>
+              <tr>
+                <td class="label">Tax Status</td>
+                <td class="value">
+                  <span class="badge" [class.badge-success]="buildingInfo()?.taxValuation?.taxStatus === 'paid'"
+                        [class.badge-warning]="buildingInfo()?.taxValuation?.taxStatus === 'pending'"
+                        [class.badge-error]="buildingInfo()?.taxValuation?.taxStatus === 'overdue'">
+                    {{ buildingInfo()?.taxValuation?.taxStatus }}
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      }
+    </div>
+  }
+</div>
