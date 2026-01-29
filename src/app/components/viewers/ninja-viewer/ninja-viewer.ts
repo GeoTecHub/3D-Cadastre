@@ -691,6 +691,10 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     this.refreshModelMaterials();
   }
 
+  public getCurrentRoomSelection(): string[] {
+    return [...this.currentRoomSelection];
+  }
+
   // ─── Explode View ───────────────────────────────────────────
 
   public toggleExplodeView(): void {

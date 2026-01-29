@@ -1,0 +1,82 @@
+@if (isOpen()) {
+  <div class="dialog-overlay" (click)="onCancel()">
+    <div class="dialog-container" (click)="$event.stopPropagation()">
+      <h2 class="dialog-title">Save Building Model</h2>
+
+      <div class="dialog-content">
+        <!-- Model Name Input -->
+        <div class="form-group">
+          <label class="form-label">Model Name:</label>
+          <input
+            type="text"
+            class="form-input"
+            [value]="modelName()"
+            (input)="updateModelName($event)"
+            placeholder="Enter model name (e.g., Building_B-8294-X_v2)"
+          />
+        </div>
+
+        <!-- Address Information Section -->
+        <div class="info-section">
+          <h3 class="section-title">Address Information</h3>
+          <div class="info-row">
+            <span class="info-label">Full Address:</span>
+            <span class="info-value">{{ buildingInfo()?.summary?.address || '120 Queen St, Unit 301, Cityville' }}</span>
+          </div>
+        </div>
+
+        <!-- RRR Information Section -->
+        <div class="info-section">
+          <h3 class="section-title">RRR Information</h3>
+          <table class="info-table">
+            <thead>
+              <tr>
+                <th>Right Type</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Ownership</td>
+                <td>Freehold</td>
+              </tr>
+              <tr>
+                <td>Leasehold</td>
+                <td>10yr Tenure (Active)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Tax & Valuation Details Section -->
+        <div class="info-section">
+          <h3 class="section-title">Tax & Valuation Details</h3>
+          <div class="info-grid">
+            <div class="info-row">
+              <span class="info-label">Total Unit Area:</span>
+              <span class="info-value">120 sq m</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Assessed Value:</span>
+              <span class="info-value">$450,000</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Date of Last Valuation:</span>
+              <span class="info-value">01/01/2023</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Current Tax Due (Annual):</span>
+              <span class="info-value">$1,250.00</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dialog Actions -->
+      <div class="dialog-actions">
+        <button class="btn btn-secondary" (click)="onCancel()">Cancel</button>
+        <button class="btn btn-primary" (click)="onSave()">Save</button>
+      </div>
+    </div>
+  </div>
+}

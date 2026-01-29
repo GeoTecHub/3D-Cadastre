@@ -91,6 +91,26 @@ export interface TaxValuation {
 }
 
 /**
+ * Relationships & Topology Information
+ */
+export interface RelationshipsTopology {
+  parcelRelation: string;
+  adjacentBuildings: string;
+  sharedBoundaries: string;
+  partOfComplex: string;
+}
+
+/**
+ * Metadata & Quality Information
+ */
+export interface MetadataQuality {
+  accuracyLevel: string;
+  surveyMethod: string;
+  lastUpdated: string;
+  responsibleParty: string;
+}
+
+/**
  * Complete Building Information
  */
 export interface BuildingInfo {
@@ -100,6 +120,8 @@ export interface BuildingInfo {
   units: BuildingUnit[];
   physicalAttributes: PhysicalAttributes;
   taxValuation?: TaxValuation;
+  relationshipsTopology: RelationshipsTopology;
+  metadataQuality: MetadataQuality;
 }
 
 /**
@@ -205,6 +227,18 @@ export function extractBuildingInfo(cityjson: any, objectId?: string): BuildingI
       annualTax: attributes.annualTax || 0,
       lastAssessmentDate: attributes.lastAssessmentDate || 'N/A',
       taxStatus: 'paid'
-    } : undefined
+    } : undefined,
+    relationshipsTopology: {
+      parcelRelation: attributes.parcelRelation || 'Parcel 123',
+      adjacentBuildings: attributes.adjacentBuildings || 'Building B-8295-Y, Building B-8293-W',
+      sharedBoundaries: attributes.sharedBoundaries || 'Party Wall East',
+      partOfComplex: attributes.partOfComplex || 'Complex C-100'
+    },
+    metadataQuality: {
+      accuracyLevel: attributes.accuracyLevel || 'Sub-meter',
+      surveyMethod: attributes.surveyMethod || 'LiDAR & GNSS',
+      lastUpdated: attributes.lastUpdated || cityjson.metadata?.fileIdentifier?.date || '2023-10-27T10:30:00Z',
+      responsibleParty: attributes.responsibleParty || 'City Surveyor Office'
+    }
   };
 }

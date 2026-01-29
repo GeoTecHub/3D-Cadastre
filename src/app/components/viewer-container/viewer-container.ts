@@ -3,9 +3,10 @@ import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { CityjsonService } from '../../services/cityjson';
 import { BackendService } from '../../services/backend.service';
-import { CityobjectsTree } from '../cityobjects-tree/cityobjects-tree';
 import { NinjaViewer } from '../viewers/ninja-viewer/ninja-viewer';
 import { BuildingInfoPanel } from '../building-info-panel/building-info-panel';
+import { SaveModelDialog, SaveModelResult } from '../dialogs/save-model-dialog/save-model-dialog';
+import { CreateApartmentDialog, CreateApartmentResult } from '../dialogs/create-apartment-dialog/create-apartment-dialog';
 import { Apartment, CityJSONRecord } from '../../services/cityjson.model';
 import { BuildingInfo, extractBuildingInfo } from '../../models/building-info.model';
 
@@ -14,7 +15,7 @@ type ViewerType = 'ninja' | 'threejs';
 @Component({
   selector: 'app-viewer-container',
   standalone: true,
-  imports: [CommonModule, CityobjectsTree, NinjaViewer, BuildingInfoPanel],
+  imports: [CommonModule, NinjaViewer, BuildingInfoPanel, SaveModelDialog, CreateApartmentDialog],
   templateUrl: './viewer-container.html',
   styleUrls: ['./viewer-container.css']
 })
@@ -40,6 +41,11 @@ export class ViewerContainer {
 
   // Track the backend record ID for the currently loaded model
   currentRecordId = signal<number | null>(null);
+
+  // Dialog visibility
+  showSaveModelDialog = signal(false);
+  showCreateApartmentDialog = signal(false);
+  selectedRoomsForApartment = signal<string[]>([]);
 
   // Building info computed from cityjson
   buildingInfo = computed<BuildingInfo | null>(() => {
@@ -125,6 +131,39 @@ export class ViewerContainer {
     }
   }
 
+  openCreateApartmentDialog(): void {
+    if (!this.cityjson()) return;
+
+    // Get selected rooms from the ninja viewer if in creation mode
+    if (this.ninjaViewer) {
+      const rooms = this.ninjaViewer.getCurrentRoomSelection?.() || [];
+      this.selectedRoomsForApartment.set(rooms);
+    }
+    this.showCreateApartmentDialog.set(true);
+  }
+
+  async onCreateApartmentDialogClose(result: CreateApartmentResult): Promise<void> {
+    this.showCreateApartmentDialog.set(false);
+
+    if (!result.confirmed || !result.apartment) {
+      // Cancel creation mode in the viewer
+      if (this.ninjaViewer) {
+        this.ninjaViewer.cancelCreationMode?.();
+      }
+      this.selectedRoomsForApartment.set([]);
+      return;
+    }
+
+    // Save the apartment
+    await this.onApartmentCreated(result.apartment);
+
+    // Reset selection
+    if (this.ninjaViewer) {
+      this.ninjaViewer.cancelCreationMode?.();
+    }
+    this.selectedRoomsForApartment.set([]);
+  }
+
   // ─── Explode View ───────────────────────────────────────────
 
   onExplodeViewRequested(): void {
@@ -145,7 +184,19 @@ export class ViewerContainer {
 
   // ─── Backend: Save Model ───────────────────────────────────
 
-  async saveModelToBackend(): Promise<void> {
+  openSaveModelDialog(): void {
+    if (!this.cityjson()) {
+      this.saveStatus.set('No model loaded to save.');
+      return;
+    }
+    this.showSaveModelDialog.set(true);
+  }
+
+  async onSaveModelDialogClose(result: SaveModelResult): Promise<void> {
+    this.showSaveModelDialog.set(false);
+
+    if (!result.confirmed) return;
+
     const data = this.cityjsonService.getCityJSONSnapshot();
     if (!data) {
       this.saveStatus.set('No model loaded to save.');
@@ -156,7 +207,7 @@ export class ViewerContainer {
     this.saveStatus.set(null);
 
     try {
-      const modelName = `CityJSON_${new Date().toISOString().slice(0, 19)}`;
+      const modelName = result.modelName || `CityJSON_${new Date().toISOString().slice(0, 19)}`;
       const record = await this.backendService.saveCityJSON(modelName, data);
       this.currentRecordId.set(record.id);
       this.saveStatus.set(`Model saved (ID: ${record.id})`);

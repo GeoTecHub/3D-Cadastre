@@ -4,9 +4,16 @@
     <div class="header-brand">
       <div class="logo">
         <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-          <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
-          <line x1="12" y1="22.08" x2="12" y2="12"/>
+          <!-- Building base -->
+          <path d="M3 21h18"/>
+          <path d="M5 21V7l7-4 7 4v14"/>
+          <!-- Windows/floors -->
+          <rect x="9" y="9" width="2" height="2"/>
+          <rect x="13" y="9" width="2" height="2"/>
+          <rect x="9" y="13" width="2" height="2"/>
+          <rect x="13" y="13" width="2" height="2"/>
+          <!-- Door -->
+          <path d="M10 21v-4h4v4"/>
         </svg>
       </div>
       <div class="brand-text">
@@ -27,7 +34,7 @@
         <span>Import CityJSON</span>
       </label>
 
-      <button class="toolbar-btn" (click)="saveModelToBackend()" [disabled]="isSaving() || !cityjson()">
+      <button class="toolbar-btn" (click)="openSaveModelDialog()" [disabled]="isSaving() || !cityjson()">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
           <polyline points="17 21 17 13 7 13 7 21"/>
@@ -48,13 +55,40 @@
 
       <div class="toolbar-divider"></div>
 
-      <button class="toolbar-btn icon-only" (click)="toggleModelList()" title="Load from Server">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <ellipse cx="12" cy="5" rx="9" ry="3"/>
-          <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
-          <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
-        </svg>
-      </button>
+      <div class="toolbar-dropdown-wrapper">
+        <button class="toolbar-btn icon-only" (click)="toggleModelList()" title="Load from Server">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <ellipse cx="12" cy="5" rx="9" ry="3"/>
+            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+          </svg>
+        </button>
+
+        @if (showModelList()) {
+          <div class="model-list-dropdown">
+            <div class="dropdown-header">
+              <h4>Saved Models</h4>
+              <button class="close-btn" (click)="showModelList.set(false)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <div class="dropdown-content">
+              @if (savedModels().length === 0) {
+                <p class="empty-message">No saved models found</p>
+              }
+              @for (model of savedModels(); track model.id) {
+                <button class="model-item" (click)="loadModelFromBackend(model)">
+                  <span class="model-name">{{ model.name }}</span>
+                  <span class="model-id">ID: {{ model.id }}</span>
+                </button>
+              }
+            </div>
+          </div>
+        }
+      </div>
 
       <button class="toolbar-btn icon-only" (click)="reloadDefaultModel()" title="Load Sample">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -85,99 +119,6 @@
 
   <!-- Main Content -->
   <div class="main-content">
-    <!-- Left Sidebar -->
-    <aside class="sidebar left-sidebar" [class.collapsed]="!showLeftPanel()">
-      <div class="sidebar-toggle" (click)="toggleLeftPanel()">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline [attr.points]="showLeftPanel() ? '15 18 9 12 15 6' : '9 18 15 12 9 6'"/>
-        </svg>
-      </div>
-
-      @if (showLeftPanel()) {
-        <div class="sidebar-content">
-          <div class="sidebar-header">
-            <h3>City Objects</h3>
-          </div>
-
-          @if (isLoading()) {
-            <div class="sidebar-status loading">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin">
-                <line x1="12" y1="2" x2="12" y2="6"/>
-                <line x1="12" y1="18" x2="12" y2="22"/>
-                <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/>
-                <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/>
-                <line x1="2" y1="12" x2="6" y2="12"/>
-                <line x1="18" y1="12" x2="22" y2="12"/>
-                <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/>
-                <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/>
-              </svg>
-              <span>Loading model...</span>
-            </div>
-          }
-
-          @if (loadError()) {
-            <div class="sidebar-status error">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="12" y1="8" x2="12" y2="12"/>
-                <line x1="12" y1="16" x2="12.01" y2="16"/>
-              </svg>
-              <span>{{ loadError() }}</span>
-            </div>
-          }
-
-          @if (selectedObjectId()) {
-            <div class="sidebar-status selection">
-              <span class="label">Selected:</span>
-              <span class="value">{{ selectedObjectId() }}</span>
-            </div>
-          }
-
-          <!-- Model List Dropdown -->
-          @if (showModelList()) {
-            <div class="model-list">
-              <div class="model-list-header">
-                <h4>Saved Models</h4>
-                <button class="close-btn" (click)="showModelList.set(false)">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="6" x2="6" y2="18"/>
-                    <line x1="6" y1="6" x2="18" y2="18"/>
-                  </svg>
-                </button>
-              </div>
-              @if (savedModels().length === 0) {
-                <p class="empty-message">No saved models found</p>
-              }
-              @for (model of savedModels(); track model.id) {
-                <button class="model-item" (click)="loadModelFromBackend(model)">
-                  <span class="model-name">{{ model.name }}</span>
-                  <span class="model-id">ID: {{ model.id }}</span>
-                </button>
-              }
-            </div>
-          }
-
-          <!-- City Objects Tree -->
-          <div class="tree-wrapper">
-            @if (cityjson()) {
-              <app-cityobjects-tree
-                [cityjson]="cityjson() ?? null"
-                (selectObject)="onSelectionChange($event)">
-              </app-cityobjects-tree>
-            } @else if (!isLoading()) {
-              <div class="tree-placeholder">
-                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                  <polyline points="14 2 14 8 20 8"/>
-                </svg>
-                <p>Load a CityJSON file to view the object tree</p>
-              </div>
-            }
-          </div>
-        </div>
-      }
-    </aside>
-
     <!-- Viewer Area -->
     <section class="viewer-area">
       <div class="viewer-wrapper">
@@ -220,22 +161,6 @@
           </div>
         }
       </div>
-
-      <!-- Viewer Controls -->
-      <div class="viewer-controls">
-        <div class="viewer-switch">
-          <button
-            [class.active]="activeViewer() === 'ninja'"
-            (click)="switchViewer('ninja')">
-            Ninja
-          </button>
-          <button
-            [class.active]="activeViewer() === 'threejs'"
-            (click)="switchViewer('threejs')">
-            Three.js
-          </button>
-        </div>
-      </div>
     </section>
 
     <!-- Right Sidebar - Building Info Panel -->
@@ -248,4 +173,19 @@
       </app-building-info-panel>
     </aside>
   </div>
+
+  <!-- Save Model Dialog -->
+  <app-save-model-dialog
+    [isOpen]="showSaveModelDialog()"
+    [buildingInfo]="buildingInfo()"
+    (dialogClose)="onSaveModelDialogClose($event)">
+  </app-save-model-dialog>
+
+  <!-- Create Apartment Dialog -->
+  <app-create-apartment-dialog
+    [isOpen]="showCreateApartmentDialog()"
+    [buildingInfo]="buildingInfo()"
+    [selectedRooms]="selectedRoomsForApartment()"
+    (dialogClose)="onCreateApartmentDialogClose($event)">
+  </app-create-apartment-dialog>
 </div>
