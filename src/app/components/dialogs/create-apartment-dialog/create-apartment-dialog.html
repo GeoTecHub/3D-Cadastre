@@ -1,0 +1,71 @@
+@if (isOpen()) {
+  <div class="dialog-overlay" (click)="onCancel()">
+    <div class="dialog-container" (click)="$event.stopPropagation()">
+      <h2 class="dialog-title">Create Apartment</h2>
+
+      <div class="dialog-content">
+        <!-- Instructions -->
+        <div class="instructions">
+          <p class="step-text">1. Select rooms in the 3D viewer to define the apartment unit.</p>
+          <p class="selected-info">Selected Rooms: {{ selectedRooms().length }} ({{ selectedRoomNames() }})</p>
+        </div>
+
+        <!-- Building Information Table -->
+        <div class="info-table-container">
+          <table class="info-table">
+            <thead>
+              <tr>
+                <th>Field Name</th>
+                <th>Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="field-name">Building ID</td>
+                <td class="field-value">{{ buildingInfo()?.summary?.buildingId || 'B-8294-X' }}</td>
+              </tr>
+              <tr>
+                <td class="field-name">Legal Status</td>
+                <td class="field-value">{{ buildingInfo()?.summary?.legalStatus || 'Strata Title' }}</td>
+              </tr>
+              <tr>
+                <td class="field-name">Address</td>
+                <td class="field-value">{{ buildingInfo()?.summary?.address || '120 Queen St.' }}</td>
+              </tr>
+              <tr>
+                <td class="field-name">Primary Use</td>
+                <td class="field-value">{{ buildingInfo()?.summary?.primaryUse || 'Residential Mixed' }}</td>
+              </tr>
+              <tr>
+                <td class="field-name">Cadastral Reference</td>
+                <td class="field-value">{{ buildingInfo()?.summary?.cadastralReference || 'Parcel 123' }}</td>
+              </tr>
+              <tr>
+                <td class="field-name">Floors</td>
+                <td class="field-value">{{ buildingInfo()?.summary?.numberOfFloors ? buildingInfo()?.summary?.numberOfFloors + ' (10 Above, 2 Below)' : '12 (10 Above, 2 Below)' }}</td>
+              </tr>
+              <tr>
+                <td class="field-name">Registration Date</td>
+                <td class="field-value">{{ buildingInfo()?.summary?.registrationDate || '15/01/2023' }}</td>
+              </tr>
+              <tr>
+                <td class="field-name">Construction Year</td>
+                <td class="field-value">{{ buildingInfo()?.physicalAttributes?.constructionYear || '2021' }}</td>
+              </tr>
+              <tr>
+                <td class="field-name">Data Source</td>
+                <td class="field-value">Survey & BIM</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Dialog Actions -->
+      <div class="dialog-actions">
+        <button class="btn btn-secondary" (click)="onCancel()">Cancel</button>
+        <button class="btn btn-primary" (click)="onSave()" [disabled]="selectedRooms().length === 0">Save Apartment</button>
+      </div>
+    </div>
+  </div>
+}

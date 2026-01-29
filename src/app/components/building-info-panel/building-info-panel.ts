@@ -6,11 +6,13 @@ import {
   BuildingInfo,
   BuildingUnit,
   OwnershipInfo,
-  RestrictionInfo
+  RestrictionInfo,
+  RelationshipsTopology,
+  MetadataQuality
 } from '../../models/building-info.model';
 
 type RRRTab = 'ownership' | 'restrictions';
-type CollapsibleSection = 'summary' | 'spatial' | 'rrr' | 'units' | 'physical';
+type CollapsibleSection = 'summary' | 'spatial' | 'rrr' | 'units' | 'physical' | 'relationships' | 'metadata';
 
 @Component({
   selector: 'app-building-info-panel',
