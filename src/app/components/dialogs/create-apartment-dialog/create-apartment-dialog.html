@@ -26,7 +26,7 @@
               </tr>
               <tr>
                 <td class="field-name">Legal Status</td>
-                <td class="field-value">{{ buildingInfo()?.summary?.legalStatus || 'Strata Title' }}</td>
+                <td class="field-value">{{ getLegalStatusDisplay(buildingInfo()?.summary?.legalStatus) }}</td>
               </tr>
               <tr>
                 <td class="field-name">Address</td>
@@ -34,15 +34,15 @@
               </tr>
               <tr>
                 <td class="field-name">Primary Use</td>
-                <td class="field-value">{{ buildingInfo()?.summary?.primaryUse || 'Residential Mixed' }}</td>
+                <td class="field-value">{{ getPrimaryUseDisplay(buildingInfo()?.summary?.primaryUse) }}</td>
               </tr>
               <tr>
                 <td class="field-name">Cadastral Reference</td>
-                <td class="field-value">{{ buildingInfo()?.summary?.cadastralReference || 'Parcel 123' }}</td>
+                <td class="field-value">{{ buildingInfo()?.summary?.cadastralRef || 'Parcel 123' }}</td>
               </tr>
               <tr>
-                <td class="field-name">Floors</td>
-                <td class="field-value">{{ buildingInfo()?.summary?.numberOfFloors ? buildingInfo()?.summary?.numberOfFloors + ' (10 Above, 2 Below)' : '12 (10 Above, 2 Below)' }}</td>
+                <td class="field-name">Floor Count</td>
+                <td class="field-value">{{ buildingInfo()?.summary?.floorCount ? buildingInfo()?.summary?.floorCount + ' (10 Above, 2 Below)' : '12 (10 Above, 2 Below)' }}</td>
               </tr>
               <tr>
                 <td class="field-name">Registration Date</td>

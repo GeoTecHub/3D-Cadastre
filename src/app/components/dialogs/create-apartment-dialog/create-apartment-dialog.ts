@@ -3,7 +3,13 @@
 import { Component, input, output, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { BuildingInfo } from '../../../models/building-info.model';
+import {
+  BuildingInfo,
+  LegalStatus,
+  PrimaryUse,
+  LEGAL_STATUS_DISPLAY,
+  PRIMARY_USE_DISPLAY
+} from '../../../models/building-info.model';
 import { Apartment } from '../../../services/cityjson.model';
 
 export interface CreateApartmentResult {
@@ -51,5 +57,15 @@ export class CreateApartmentDialog {
     };
 
     this.dialogClose.emit({ apartment, confirmed: true });
+  }
+
+  getLegalStatusDisplay(code: LegalStatus | undefined): string {
+    if (!code) return 'N/A';
+    return LEGAL_STATUS_DISPLAY[code] || code;
+  }
+
+  getPrimaryUseDisplay(code: PrimaryUse | undefined): string {
+    if (!code) return 'N/A';
+    return PRIMARY_USE_DISPLAY[code] || code;
   }
 }
