@@ -1,17 +1,65 @@
 // Path: src/app/models/building-info.model.ts
 
 /**
- * Summary & Administrative Information
+ * Administrative & Legal Enums (Section 2.1.2)
+ */
+export enum LegalStatus {
+  FREEHOLD = 'FREEHOLD',
+  LEASEHOLD = 'LEASEHOLD',
+  STRATA = 'STRATA',
+  STATE = 'STATE'
+}
+
+export const LEGAL_STATUS_DISPLAY: Record<LegalStatus, string> = {
+  [LegalStatus.FREEHOLD]: 'Freehold',
+  [LegalStatus.LEASEHOLD]: 'Leasehold',
+  [LegalStatus.STRATA]: 'Strata Title',
+  [LegalStatus.STATE]: 'State Land'
+};
+
+export enum PrimaryUse {
+  RES = 'RES',
+  COM = 'COM',
+  IND = 'IND',
+  MIX = 'MIX',
+  PUB = 'PUB'
+}
+
+export const PRIMARY_USE_DISPLAY: Record<PrimaryUse, string> = {
+  [PrimaryUse.RES]: 'Residential',
+  [PrimaryUse.COM]: 'Commercial',
+  [PrimaryUse.IND]: 'Industrial',
+  [PrimaryUse.MIX]: 'Mixed Use',
+  [PrimaryUse.PUB]: 'Public/Institutional'
+};
+
+export enum RightType {
+  OWN = 'OWN',
+  LSE = 'LSE',
+  EAS = 'EAS',
+  MTG = 'MTG',
+  USU = 'USU'
+}
+
+export const RIGHT_TYPE_DISPLAY: Record<RightType, string> = {
+  [RightType.OWN]: 'Ownership',
+  [RightType.LSE]: 'Lease',
+  [RightType.EAS]: 'Easement',
+  [RightType.MTG]: 'Mortgage',
+  [RightType.USU]: 'Usufruct'
+};
+
+/**
+ * Summary & Administrative Information (Section 2.1.1)
  */
 export interface BuildingSummary {
-  buildingId: string;
-  legalStatus: string;
-  address: string;
-  primaryUse: string;
-  cadastralReference: string;
-  numberOfFloors: number;
-  registrationDate: string;
-  lastUpdated: string;
+  buildingId: string;       // UUID, Read-Only
+  legalStatus: LegalStatus; // Enum, Editable
+  address: string;          // Text, Editable, max 255 chars
+  primaryUse: PrimaryUse;   // Enum, Editable
+  cadastralRef: string;     // Link, Read-Only
+  floorCount: number;       // Integer, Read-Only (calculated from 3D model)
+  registrationDate: string; // ISO 8601, Editable
 }
 
 /**
@@ -179,16 +227,20 @@ export function extractBuildingInfo(cityjson: any, objectId?: string): BuildingI
     surfaceArea = geom.surfaceArea || attributes.surfaceArea || 0;
   }
 
+  // Resolve legalStatus enum from attribute value
+  const resolvedLegalStatus = resolveLegalStatus(attributes.legalStatus);
+  // Resolve primaryUse enum from attribute value
+  const resolvedPrimaryUse = resolvePrimaryUse(attributes.function || attributes.usage);
+
   return {
     summary: {
       buildingId: buildingKey,
-      legalStatus: attributes.legalStatus || 'Registered',
+      legalStatus: resolvedLegalStatus,
       address: attributes.address || attributes.name || 'Not specified',
-      primaryUse: attributes.function || attributes.usage || 'Residential',
-      cadastralReference: attributes.cadastralReference || attributes.id || buildingKey,
-      numberOfFloors: attributes.storeysAboveGround || attributes.numberOfFloors || 1,
-      registrationDate: attributes.registrationDate || new Date().toISOString().split('T')[0],
-      lastUpdated: attributes.lastUpdated || new Date().toISOString().split('T')[0]
+      primaryUse: resolvedPrimaryUse,
+      cadastralRef: attributes.cadastralReference || attributes.cadastralRef || attributes.id || buildingKey,
+      floorCount: attributes.storeysAboveGround || attributes.numberOfFloors || attributes.floorCount || 1,
+      registrationDate: attributes.registrationDate || new Date().toISOString().split('T')[0]
     },
     spatial: {
       footprint: attributes.footprint || 'Polygon',
@@ -241,4 +293,35 @@ export function extractBuildingInfo(cityjson: any, objectId?: string): BuildingI
       responsibleParty: attributes.responsibleParty || 'City Surveyor Office'
     }
   };
+}
+
+/**
+ * Resolve a raw legalStatus attribute value to the LegalStatus enum.
+ */
+function resolveLegalStatus(raw: string | undefined): LegalStatus {
+  if (!raw) return LegalStatus.FREEHOLD;
+  const upper = raw.toUpperCase().replace(/[\s_-]/g, '');
+  if (upper.includes('LEASE')) return LegalStatus.LEASEHOLD;
+  if (upper.includes('STRATA')) return LegalStatus.STRATA;
+  if (upper.includes('STATE') || upper.includes('CROWN') || upper.includes('GOVERNMENT')) return LegalStatus.STATE;
+  if (upper.includes('FREE')) return LegalStatus.FREEHOLD;
+  // Try direct enum match
+  if (Object.values(LegalStatus).includes(raw as LegalStatus)) return raw as LegalStatus;
+  return LegalStatus.FREEHOLD;
+}
+
+/**
+ * Resolve a raw primaryUse / function attribute value to the PrimaryUse enum.
+ */
+function resolvePrimaryUse(raw: string | undefined): PrimaryUse {
+  if (!raw) return PrimaryUse.RES;
+  const upper = raw.toUpperCase().replace(/[\s_-]/g, '');
+  if (upper.includes('COMMERCIAL') || upper === 'COM') return PrimaryUse.COM;
+  if (upper.includes('INDUSTRIAL') || upper === 'IND') return PrimaryUse.IND;
+  if (upper.includes('MIXED') || upper === 'MIX') return PrimaryUse.MIX;
+  if (upper.includes('PUBLIC') || upper.includes('INSTITUTIONAL') || upper === 'PUB') return PrimaryUse.PUB;
+  if (upper.includes('RESIDENTIAL') || upper === 'RES') return PrimaryUse.RES;
+  // Try direct enum match
+  if (Object.values(PrimaryUse).includes(raw as PrimaryUse)) return raw as PrimaryUse;
+  return PrimaryUse.RES;
 }

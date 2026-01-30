@@ -8,7 +8,11 @@ import {
   OwnershipInfo,
   RestrictionInfo,
   RelationshipsTopology,
-  MetadataQuality
+  MetadataQuality,
+  LegalStatus,
+  PrimaryUse,
+  LEGAL_STATUS_DISPLAY,
+  PRIMARY_USE_DISPLAY
 } from '../../models/building-info.model';
 
 type RRRTab = 'ownership' | 'restrictions';
@@ -101,5 +105,15 @@ export class BuildingInfoPanel {
       case 'under_construction': return 'status-construction';
       default: return '';
     }
+  }
+
+  getLegalStatusDisplay(code: LegalStatus | undefined): string {
+    if (!code) return 'N/A';
+    return LEGAL_STATUS_DISPLAY[code] || code;
+  }
+
+  getPrimaryUseDisplay(code: PrimaryUse | undefined): string {
+    if (!code) return 'N/A';
+    return PRIMARY_USE_DISPLAY[code] || code;
   }
 }

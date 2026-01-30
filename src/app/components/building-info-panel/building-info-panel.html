@@ -39,12 +39,12 @@
             <table class="info-table">
               <tr>
                 <td class="label">Building ID</td>
-                <td class="value">{{ buildingInfo()?.summary?.buildingId || 'N/A' }}</td>
+                <td class="value read-only">{{ buildingInfo()?.summary?.buildingId || 'N/A' }}</td>
               </tr>
               <tr>
                 <td class="label">Legal Status</td>
                 <td class="value">
-                  <span class="badge badge-success">{{ buildingInfo()?.summary?.legalStatus || 'N/A' }}</span>
+                  <span class="badge badge-success">{{ getLegalStatusDisplay(buildingInfo()?.summary?.legalStatus) }}</span>
                 </td>
               </tr>
               <tr>
@@ -53,23 +53,21 @@
               </tr>
               <tr>
                 <td class="label">Primary Use</td>
-                <td class="value">{{ buildingInfo()?.summary?.primaryUse || 'N/A' }}</td>
+                <td class="value">{{ getPrimaryUseDisplay(buildingInfo()?.summary?.primaryUse) }}</td>
               </tr>
               <tr>
                 <td class="label">Cadastral Ref.</td>
-                <td class="value">{{ buildingInfo()?.summary?.cadastralReference || 'N/A' }}</td>
+                <td class="value">
+                  <a class="cadastral-link" title="Navigate to parcel view">{{ buildingInfo()?.summary?.cadastralRef || 'N/A' }}</a>
+                </td>
               </tr>
               <tr>
-                <td class="label">Floors</td>
-                <td class="value">{{ buildingInfo()?.summary?.numberOfFloors || 'N/A' }}</td>
+                <td class="label">Floor Count</td>
+                <td class="value read-only">{{ buildingInfo()?.summary?.floorCount || 'N/A' }}</td>
               </tr>
               <tr>
                 <td class="label">Registration Date</td>
                 <td class="value">{{ buildingInfo()?.summary?.registrationDate || 'N/A' }}</td>
-              </tr>
-              <tr>
-                <td class="label">Last Updated</td>
-                <td class="value">{{ buildingInfo()?.summary?.lastUpdated || 'N/A' }}</td>
               </tr>
             </table>
           </div>
