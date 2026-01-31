@@ -2,8 +2,10 @@
 
 import { Component, input, output, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import {
   BuildingInfo,
+  BuildingSummary,
   BuildingUnit,
   OwnershipInfo,
   RestrictionInfo,
@@ -21,7 +23,7 @@ type CollapsibleSection = 'summary' | 'spatial' | 'rrr' | 'units' | 'physical' |
 @Component({
   selector: 'app-building-info-panel',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './building-info-panel.html',
   styleUrls: ['./building-info-panel.css']
 })
@@ -33,6 +35,13 @@ export class BuildingInfoPanel {
   // Outputs
   unitSelected = output<string>();
   explodeViewRequested = output<void>();
+  summaryChanged = output<BuildingSummary>();
+
+  // Enum option lists for dropdown selects
+  readonly legalStatusOptions = Object.values(LegalStatus);
+  readonly primaryUseOptions = Object.values(PrimaryUse);
+  readonly legalStatusDisplayMap = LEGAL_STATUS_DISPLAY;
+  readonly primaryUseDisplayMap = PRIMARY_USE_DISPLAY;
 
   // Local state
   expandedSections = signal<Set<CollapsibleSection>>(new Set(['summary', 'units']));
@@ -115,5 +124,14 @@ export class BuildingInfoPanel {
   getPrimaryUseDisplay(code: PrimaryUse | undefined): string {
     if (!code) return 'N/A';
     return PRIMARY_USE_DISPLAY[code] || code;
+  }
+
+  // ─── Summary field editing ────────────────────────────────
+
+  onSummaryFieldChange(field: keyof BuildingSummary, value: string | number): void {
+    const info = this.buildingInfo();
+    if (!info) return;
+    const updated: BuildingSummary = { ...info.summary, [field]: value };
+    this.summaryChanged.emit(updated);
   }
 }

@@ -169,7 +169,8 @@
         [buildingInfo]="buildingInfo()"
         [selectedUnitId]="selectedObjectId()"
         (unitSelected)="onUnitSelected($event)"
-        (explodeViewRequested)="onExplodeViewRequested()">
+        (explodeViewRequested)="onExplodeViewRequested()"
+        (summaryChanged)="onSummaryChanged($event)">
       </app-building-info-panel>
     </aside>
   </div>
