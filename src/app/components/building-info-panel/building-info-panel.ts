@@ -7,17 +7,25 @@ import {
   BuildingInfo,
   BuildingSummary,
   BuildingUnit,
-  OwnershipInfo,
-  RestrictionInfo,
+  RRREntry,
+  RRRInfo,
+  RRRRestriction,
+  RRRResponsibility,
   RelationshipsTopology,
   MetadataQuality,
   LegalStatus,
   PrimaryUse,
+  RightType,
+  RestrictionType,
+  ResponsibilityType,
   LEGAL_STATUS_DISPLAY,
-  PRIMARY_USE_DISPLAY
+  PRIMARY_USE_DISPLAY,
+  RIGHT_TYPE_DISPLAY,
+  RESTRICTION_TYPE_DISPLAY,
+  RESPONSIBILITY_TYPE_DISPLAY
 } from '../../models/building-info.model';
 
-type RRRTab = 'ownership' | 'restrictions';
+type RRRTab = 'overview' | 'ownership';
 type CollapsibleSection = 'summary' | 'spatial' | 'rrr' | 'units' | 'physical' | 'relationships' | 'metadata';
 
 @Component({
@@ -36,17 +44,26 @@ export class BuildingInfoPanel {
   unitSelected = output<string>();
   explodeViewRequested = output<void>();
   summaryChanged = output<BuildingSummary>();
+  rrrChanged = output<RRRInfo>();
 
   // Enum option lists for dropdown selects
   readonly legalStatusOptions = Object.values(LegalStatus);
   readonly primaryUseOptions = Object.values(PrimaryUse);
+  readonly rightTypeOptions = Object.values(RightType);
+  readonly restrictionTypeOptions = Object.values(RestrictionType);
+  readonly responsibilityTypeOptions = Object.values(ResponsibilityType);
+
   readonly legalStatusDisplayMap = LEGAL_STATUS_DISPLAY;
   readonly primaryUseDisplayMap = PRIMARY_USE_DISPLAY;
+  readonly rightTypeDisplayMap = RIGHT_TYPE_DISPLAY;
+  readonly restrictionTypeDisplayMap = RESTRICTION_TYPE_DISPLAY;
+  readonly responsibilityTypeDisplayMap = RESPONSIBILITY_TYPE_DISPLAY;
 
   // Local state
   expandedSections = signal<Set<CollapsibleSection>>(new Set(['summary', 'units']));
   activeRRRTab = signal<RRRTab>('ownership');
   selectedUnit = signal<BuildingUnit | null>(null);
+  expandedRRRId = signal<string | null>(null);
 
   // Computed values
   hasBuilding = computed(() => this.buildingInfo() !== null);
@@ -133,5 +150,98 @@ export class BuildingInfoPanel {
     if (!info) return;
     const updated: BuildingSummary = { ...info.summary, [field]: value };
     this.summaryChanged.emit(updated);
+  }
+
+  // ─── RRR editing ──────────────────────────────────────────
+
+  toggleRRRExpand(rrrId: string): void {
+    this.expandedRRRId.set(this.expandedRRRId() === rrrId ? null : rrrId);
+  }
+
+  private emitRRRUpdate(entries: RRREntry[]): void {
+    this.rrrChanged.emit({ entries });
+  }
+
+  private cloneEntries(): RRREntry[] {
+    const info = this.buildingInfo();
+    if (!info) return [];
+    return info.rrr.entries.map(e => ({
+      ...e,
+      restrictions: [...e.restrictions.map(r => ({ ...r }))],
+      responsibilities: [...e.responsibilities.map(r => ({ ...r }))]
+    }));
+  }
+
+  onRRRFieldChange(index: number, field: keyof RRREntry, value: any): void {
+    const entries = this.cloneEntries();
+    if (!entries[index]) return;
+    (entries[index] as any)[field] = value;
+    this.emitRRRUpdate(entries);
+  }
+
+  addRRREntry(): void {
+    const entries = this.cloneEntries();
+    entries.push({
+      rrrId: `RRR-${Date.now().toString(36).toUpperCase()}`,
+      type: RightType.OWN_FREE,
+      holder: '',
+      share: 0,
+      validFrom: new Date().toISOString().split('T')[0],
+      validTo: '',
+      documentRef: '',
+      restrictions: [],
+      responsibilities: []
+    });
+    this.emitRRRUpdate(entries);
+  }
+
+  // Restrictions
+  addRestriction(entryIndex: number): void {
+    const entries = this.cloneEntries();
+    if (!entries[entryIndex]) return;
+    entries[entryIndex].restrictions.push({
+      type: RestrictionType.RES_EAS,
+      description: ''
+    });
+    this.emitRRRUpdate(entries);
+  }
+
+  removeRestriction(entryIndex: number, restrictionIndex: number): void {
+    const entries = this.cloneEntries();
+    if (!entries[entryIndex]) return;
+    entries[entryIndex].restrictions.splice(restrictionIndex, 1);
+    this.emitRRRUpdate(entries);
+  }
+
+  onRestrictionChange(entryIndex: number, restrictionIndex: number, field: keyof RRRRestriction, value: any): void {
+    const entries = this.cloneEntries();
+    if (!entries[entryIndex]?.restrictions[restrictionIndex]) return;
+    (entries[entryIndex].restrictions[restrictionIndex] as any)[field] = value;
+    this.emitRRRUpdate(entries);
+  }
+
+  // Responsibilities
+  addResponsibility(entryIndex: number): void {
+    const entries = this.cloneEntries();
+    if (!entries[entryIndex]) return;
+    entries[entryIndex].responsibilities.push({
+      type: ResponsibilityType.RSP_MAINT,
+      description: ''
+    });
+    this.emitRRRUpdate(entries);
+  }
+
+  removeResponsibility(entryIndex: number, responsibilityIndex: number): void {
+    const entries = this.cloneEntries();
+    if (!entries[entryIndex]) return;
+    entries[entryIndex].responsibilities.splice(responsibilityIndex, 1);
+    this.emitRRRUpdate(entries);
+  }
+
+  onResponsibilityChange(entryIndex: number, responsibilityIndex: number, field: keyof RRRResponsibility, value: any): void {
+    const entries = this.cloneEntries();
+    if (!entries[entryIndex]?.responsibilities[responsibilityIndex]) return;
+    (entries[entryIndex].responsibilities[responsibilityIndex] as any)[field] = value;
+    this.emitRRRUpdate(entries);
   }
 }

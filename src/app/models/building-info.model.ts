@@ -34,19 +34,51 @@ export const PRIMARY_USE_DISPLAY: Record<PrimaryUse, string> = {
 };
 
 export enum RightType {
-  OWN = 'OWN',
-  LSE = 'LSE',
-  EAS = 'EAS',
-  MTG = 'MTG',
-  USU = 'USU'
+  OWN_FREE = 'OWN_FREE',
+  OWN_LSE = 'OWN_LSE',
+  OWN_STR = 'OWN_STR',
+  OWN_COM = 'OWN_COM',
+  BEN_USU = 'BEN_USU',
+  BEN_OCC = 'BEN_OCC',
+  SEC_MTG = 'SEC_MTG'
 }
 
 export const RIGHT_TYPE_DISPLAY: Record<RightType, string> = {
-  [RightType.OWN]: 'Ownership',
-  [RightType.LSE]: 'Lease',
-  [RightType.EAS]: 'Easement',
-  [RightType.MTG]: 'Mortgage',
-  [RightType.USU]: 'Usufruct'
+  [RightType.OWN_FREE]: 'Freehold Ownership',
+  [RightType.OWN_LSE]: 'Leasehold',
+  [RightType.OWN_STR]: 'Strata Title',
+  [RightType.OWN_COM]: 'Common Property',
+  [RightType.BEN_USU]: 'Usufruct',
+  [RightType.BEN_OCC]: 'Right of Occupation',
+  [RightType.SEC_MTG]: 'Mortgage'
+};
+
+export enum RestrictionType {
+  RES_EAS = 'RES_EAS',
+  RES_COV = 'RES_COV',
+  RES_HGT = 'RES_HGT',
+  RES_HER = 'RES_HER',
+  RES_ENV = 'RES_ENV'
+}
+
+export const RESTRICTION_TYPE_DISPLAY: Record<RestrictionType, string> = {
+  [RestrictionType.RES_EAS]: 'Easement',
+  [RestrictionType.RES_COV]: 'Restrictive Covenant',
+  [RestrictionType.RES_HGT]: 'Height Restriction',
+  [RestrictionType.RES_HER]: 'Heritage Status',
+  [RestrictionType.RES_ENV]: 'Environmental'
+};
+
+export enum ResponsibilityType {
+  RSP_MAINT = 'RSP_MAINT',
+  RSP_TAX = 'RSP_TAX',
+  RSP_INS = 'RSP_INS'
+}
+
+export const RESPONSIBILITY_TYPE_DISPLAY: Record<ResponsibilityType, string> = {
+  [ResponsibilityType.RSP_MAINT]: 'Maintenance',
+  [ResponsibilityType.RSP_TAX]: 'Tax Liability',
+  [ResponsibilityType.RSP_INS]: 'Insurance'
 };
 
 /**
@@ -78,26 +110,36 @@ export interface SpatialInfo {
 
 /**
  * Rights, Restrictions & Responsibilities (RRR)
+ * Data Dictionary Section 2.1.3
  */
-export interface OwnershipInfo {
-  ownerName: string;
-  ownershipType: string;
-  sharePercentage: number;
-  registrationNumber: string;
-  registrationDate: string;
+
+/** A restriction attached to a specific RRR entry */
+export interface RRRRestriction {
+  type: RestrictionType;
+  description: string;
 }
 
-export interface RestrictionInfo {
-  type: string;
+/** A responsibility attached to a specific RRR entry */
+export interface RRRResponsibility {
+  type: ResponsibilityType;
   description: string;
-  registeredBy: string;
-  effectiveDate: string;
-  expiryDate?: string;
+}
+
+/** One RRR record (right/tenure entry) */
+export interface RRREntry {
+  rrrId: string;                    // UUID, Editable
+  type: RightType;                  // Enum, Editable dropdown
+  holder: string;                   // Person/Org ID, Editable
+  share: number;                    // Float 0-100, Editable
+  validFrom: string;                // ISO 8601, Editable
+  validTo: string;                  // ISO 8601 or '' for indefinite, Editable
+  documentRef: string;              // File path/link, Editable
+  restrictions: RRRRestriction[];   // Linked restrictions for this holder
+  responsibilities: RRRResponsibility[]; // Linked responsibilities for this holder
 }
 
 export interface RRRInfo {
-  ownership: OwnershipInfo[];
-  restrictions: RestrictionInfo[];
+  entries: RRREntry[];
 }
 
 /**
@@ -253,14 +295,22 @@ export function extractBuildingInfo(cityjson: any, objectId?: string): BuildingI
       lodLevel: building.geometry?.[0]?.lod || 'LoD2'
     },
     rrr: {
-      ownership: [{
-        ownerName: attributes.ownerName || 'Not specified',
-        ownershipType: attributes.ownershipType || 'Freehold',
-        sharePercentage: 100,
-        registrationNumber: attributes.registrationNumber || 'N/A',
-        registrationDate: attributes.registrationDate || 'N/A'
-      }],
-      restrictions: attributes.restrictions || []
+      entries: [{
+        rrrId: attributes.registrationNumber || crypto.randomUUID?.() || `RRR-${Date.now()}`,
+        type: RightType.OWN_FREE,
+        holder: attributes.ownerName || 'Jane Doe',
+        share: 100,
+        validFrom: attributes.registrationDate || '2023-01-01',
+        validTo: '',
+        documentRef: attributes.documentRef || '',
+        restrictions: [
+          { type: RestrictionType.RES_HGT, description: 'Max 40m building height' }
+        ],
+        responsibilities: [
+          { type: ResponsibilityType.RSP_TAX, description: 'Annual property tax' },
+          { type: ResponsibilityType.RSP_INS, description: 'Building insurance required' }
+        ]
+      }]
     },
     units,
     physicalAttributes: {

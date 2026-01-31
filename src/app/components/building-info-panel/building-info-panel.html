@@ -207,7 +207,7 @@
         }
       </div>
 
-      <!-- Rights, Restrictions & Responsibilities Section -->
+      <!-- Rights, Restrictions & Responsibilities (RRR) Section -->
       <div class="collapsible-section">
         <button
           class="section-header"
@@ -219,7 +219,7 @@
               <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
             </svg>
           </span>
-          <span class="section-title">Rights, Restrictions & Responsibilities</span>
+          <span class="section-title">Rights, Restrictions & Responsibilities (RRR)</span>
           <span class="chevron">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="6 9 12 15 18 9"/>
@@ -227,86 +227,204 @@
           </span>
         </button>
         @if (isSectionExpanded('rrr')) {
-          <div class="section-content">
-            <!-- Tabs -->
+          <div class="section-content rrr-section">
+
+            <!-- Tabs: Overview / Ownership -->
             <div class="tab-bar">
+              <button
+                class="tab-btn"
+                [class.active]="activeRRRTab() === 'overview'"
+                (click)="setRRRTab('overview')">
+                Owned rview
+              </button>
               <button
                 class="tab-btn"
                 [class.active]="activeRRRTab() === 'ownership'"
                 (click)="setRRRTab('ownership')">
                 Ownership
               </button>
-              <button
-                class="tab-btn"
-                [class.active]="activeRRRTab() === 'restrictions'"
-                (click)="setRRRTab('restrictions')">
-                Restrictions
-              </button>
             </div>
 
-            @if (activeRRRTab() === 'ownership') {
+            <!-- ═══ Overview Tab ═══ -->
+            @if (activeRRRTab() === 'overview') {
               <div class="tab-content">
-                @if (buildingInfo()?.rrr?.ownership?.length) {
-                  @for (owner of buildingInfo()?.rrr?.ownership; track owner.registrationNumber) {
-                    <div class="rrr-card">
-                      <div class="rrr-header">
-                        <span class="owner-name">{{ owner.ownerName }}</span>
-                        <span class="badge badge-primary">{{ owner.ownershipType }}</span>
-                      </div>
-                      <table class="info-table compact">
-                        <tr>
-                          <td class="label">Share</td>
-                          <td class="value">{{ owner.sharePercentage }}%</td>
-                        </tr>
-                        <tr>
-                          <td class="label">Reg. Number</td>
-                          <td class="value">{{ owner.registrationNumber }}</td>
-                        </tr>
-                        <tr>
-                          <td class="label">Reg. Date</td>
-                          <td class="value">{{ owner.registrationDate }}</td>
-                        </tr>
-                      </table>
+                @if (buildingInfo()?.rrr?.entries?.length) {
+                  @for (entry of buildingInfo()!.rrr.entries; track entry.rrrId; let i = $index) {
+                    <div class="rrr-overview-card" [class.expanded]="expandedRRRId() === entry.rrrId">
+                      <!-- Summary row -->
+                      <button class="rrr-overview-header" (click)="toggleRRRExpand(entry.rrrId)">
+                        <span class="rrr-holder">{{ entry.holder }}</span>
+                        <span class="rrr-type-badge">{{ rightTypeDisplayMap[entry.type] }}</span>
+                        <span class="rrr-share">{{ entry.share }}%</span>
+                        <span class="rrr-chevron">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="6 9 12 15 18 9"/>
+                          </svg>
+                        </span>
+                      </button>
+
+                      <!-- Expanded detail -->
+                      @if (expandedRRRId() === entry.rrrId) {
+                        <div class="rrr-detail-panel">
+                          <!-- Restrictions linked to this holder -->
+                          <div class="rrr-sub-section">
+                            <div class="rrr-sub-header">
+                              <span class="rrr-sub-title">Restrictions</span>
+                              <button class="rrr-add-btn" (click)="addRestriction(i)">+ Add</button>
+                            </div>
+                            @if (entry.restrictions.length) {
+                              @for (r of entry.restrictions; track r.type; let ri = $index) {
+                                <div class="rrr-sub-row">
+                                  <select
+                                    class="field-select rrr-mini-select"
+                                    [ngModel]="r.type"
+                                    (ngModelChange)="onRestrictionChange(i, ri, 'type', $event)">
+                                    @for (opt of restrictionTypeOptions; track opt) {
+                                      <option [value]="opt">{{ restrictionTypeDisplayMap[opt] }}</option>
+                                    }
+                                  </select>
+                                  <input
+                                    type="text" class="field-input rrr-mini-input"
+                                    [ngModel]="r.description"
+                                    (ngModelChange)="onRestrictionChange(i, ri, 'description', $event)"
+                                    placeholder="Description" />
+                                  <button class="rrr-remove-btn" (click)="removeRestriction(i, ri)" title="Remove">&times;</button>
+                                </div>
+                              }
+                            } @else {
+                              <p class="empty-message">No restrictions</p>
+                            }
+                          </div>
+
+                          <!-- Responsibilities linked to this holder -->
+                          <div class="rrr-sub-section">
+                            <div class="rrr-sub-header">
+                              <span class="rrr-sub-title">Responsibilities</span>
+                              <button class="rrr-add-btn" (click)="addResponsibility(i)">+ Add</button>
+                            </div>
+                            @if (entry.responsibilities.length) {
+                              @for (resp of entry.responsibilities; track resp.type; let rsi = $index) {
+                                <div class="rrr-sub-row">
+                                  <select
+                                    class="field-select rrr-mini-select"
+                                    [ngModel]="resp.type"
+                                    (ngModelChange)="onResponsibilityChange(i, rsi, 'type', $event)">
+                                    @for (opt of responsibilityTypeOptions; track opt) {
+                                      <option [value]="opt">{{ responsibilityTypeDisplayMap[opt] }}</option>
+                                    }
+                                  </select>
+                                  <input
+                                    type="text" class="field-input rrr-mini-input"
+                                    [ngModel]="resp.description"
+                                    (ngModelChange)="onResponsibilityChange(i, rsi, 'description', $event)"
+                                    placeholder="Description" />
+                                  <button class="rrr-remove-btn" (click)="removeResponsibility(i, rsi)" title="Remove">&times;</button>
+                                </div>
+                              }
+                            } @else {
+                              <p class="empty-message">No responsibilities</p>
+                            }
+                          </div>
+                        </div>
+                      }
                     </div>
                   }
                 } @else {
-                  <p class="empty-message">No ownership records found</p>
+                  <p class="empty-message">No RRR entries found</p>
                 }
               </div>
             }
 
-            @if (activeRRRTab() === 'restrictions') {
+            <!-- ═══ Ownership Tab (editable table view) ═══ -->
+            @if (activeRRRTab() === 'ownership') {
               <div class="tab-content">
-                @if (buildingInfo()?.rrr?.restrictions?.length) {
-                  @for (restriction of buildingInfo()?.rrr?.restrictions; track restriction.type) {
-                    <div class="rrr-card restriction">
-                      <div class="rrr-header">
-                        <span class="restriction-type">{{ restriction.type }}</span>
-                      </div>
-                      <p class="restriction-desc">{{ restriction.description }}</p>
-                      <table class="info-table compact">
-                        <tr>
-                          <td class="label">Registered By</td>
-                          <td class="value">{{ restriction.registeredBy }}</td>
-                        </tr>
-                        <tr>
-                          <td class="label">Effective</td>
-                          <td class="value">{{ restriction.effectiveDate }}</td>
-                        </tr>
-                        @if (restriction.expiryDate) {
-                          <tr>
-                            <td class="label">Expires</td>
-                            <td class="value">{{ restriction.expiryDate }}</td>
+                <div class="rrr-table-wrapper">
+                  <table class="rrr-table">
+                    <thead>
+                      <tr>
+                        <th>Right Holder</th>
+                        <th>Type</th>
+                        <th>Share</th>
+                        <th>Temporal Validity</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @if (buildingInfo()?.rrr?.entries?.length) {
+                        @for (entry of buildingInfo()!.rrr.entries; track entry.rrrId; let i = $index) {
+                          <tr class="rrr-data-row" (click)="toggleRRRExpand(entry.rrrId)">
+                            <td>
+                              <input
+                                type="text" class="field-input rrr-cell-input"
+                                [ngModel]="entry.holder"
+                                (ngModelChange)="onRRRFieldChange(i, 'holder', $event)"
+                                (click)="$event.stopPropagation()"
+                                placeholder="Name" />
+                            </td>
+                            <td>
+                              <select
+                                class="field-select rrr-cell-select"
+                                [ngModel]="entry.type"
+                                (ngModelChange)="onRRRFieldChange(i, 'type', $event)"
+                                (click)="$event.stopPropagation()">
+                                @for (opt of rightTypeOptions; track opt) {
+                                  <option [value]="opt">{{ rightTypeDisplayMap[opt] }}</option>
+                                }
+                              </select>
+                            </td>
+                            <td>
+                              <input
+                                type="number" class="field-input rrr-cell-input rrr-share-input"
+                                [ngModel]="entry.share"
+                                (ngModelChange)="onRRRFieldChange(i, 'share', $event)"
+                                (click)="$event.stopPropagation()"
+                                min="0" max="100" />
+                            </td>
+                            <td class="rrr-validity-cell">
+                              <input
+                                type="date" class="field-input rrr-cell-input"
+                                [ngModel]="entry.validFrom"
+                                (ngModelChange)="onRRRFieldChange(i, 'validFrom', $event)"
+                                (click)="$event.stopPropagation()" />
+                              <span class="rrr-validity-sep">&ndash;</span>
+                              <input
+                                type="date" class="field-input rrr-cell-input"
+                                [ngModel]="entry.validTo"
+                                (ngModelChange)="onRRRFieldChange(i, 'validTo', $event)"
+                                (click)="$event.stopPropagation()"
+                                placeholder="Indefinite" />
+                            </td>
                           </tr>
+                          <!-- Expanded detail row for document ref -->
+                          @if (expandedRRRId() === entry.rrrId) {
+                            <tr class="rrr-detail-row">
+                              <td colspan="4">
+                                <div class="rrr-detail-inline">
+                                  <div class="rrr-inline-field">
+                                    <span class="label">RRR ID:</span>
+                                    <input type="text" class="field-input" [ngModel]="entry.rrrId"
+                                      (ngModelChange)="onRRRFieldChange(i, 'rrrId', $event)" />
+                                  </div>
+                                  <div class="rrr-inline-field">
+                                    <span class="label">Document Ref:</span>
+                                    <input type="text" class="field-input" [ngModel]="entry.documentRef"
+                                      (ngModelChange)="onRRRFieldChange(i, 'documentRef', $event)"
+                                      placeholder="Path to deed/contract PDF" />
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          }
                         }
-                      </table>
-                    </div>
-                  }
-                } @else {
-                  <p class="empty-message">No restrictions recorded</p>
-                }
+                      } @else {
+                        <tr><td colspan="4" class="empty-message">No entries</td></tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+                <button class="rrr-add-entry-btn" (click)="addRRREntry()">+ Add Right / Tenure</button>
               </div>
             }
+
           </div>
         }
       </div>

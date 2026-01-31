@@ -364,6 +364,291 @@
   line-height: 1.4;
 }
 
+/* ─── RRR Section ──────────────────────────────────────────── */
+
+.rrr-section {
+  padding: 0 !important;
+}
+
+.rrr-section .tab-bar {
+  padding: 0.5rem 0.75rem 0;
+}
+
+.rrr-section .tab-content {
+  padding: 0.5rem 0.75rem 0.75rem;
+}
+
+/* RRR Ownership Table */
+.rrr-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  border-radius: 8px;
+}
+
+.rrr-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+
+.rrr-table thead tr {
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.rrr-table th {
+  text-align: left;
+  padding: 0.5rem 0.4rem;
+  color: #94a3b8;
+  font-weight: 600;
+  font-size: 0.7rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+  white-space: nowrap;
+}
+
+.rrr-table td {
+  padding: 0.35rem 0.4rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+  vertical-align: middle;
+}
+
+.rrr-data-row {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.rrr-data-row:hover {
+  background: rgba(79, 70, 229, 0.08);
+}
+
+.rrr-cell-input,
+.rrr-cell-select {
+  width: 100%;
+  padding: 0.25rem 0.35rem;
+  font-size: 0.75rem;
+}
+
+.rrr-share-input {
+  width: 50px;
+  text-align: right;
+}
+
+.rrr-validity-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  white-space: nowrap;
+}
+
+.rrr-validity-cell .field-input {
+  width: 100px;
+  font-size: 0.7rem;
+  padding: 0.2rem 0.25rem;
+}
+
+.rrr-validity-sep {
+  color: #64748b;
+  font-size: 0.75rem;
+}
+
+.rrr-detail-row td {
+  padding: 0.5rem;
+  background: rgba(15, 23, 42, 0.4);
+}
+
+.rrr-detail-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.rrr-inline-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.rrr-inline-field .label {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  white-space: nowrap;
+  min-width: 80px;
+}
+
+.rrr-inline-field .field-input {
+  flex: 1;
+  font-size: 0.75rem;
+}
+
+.rrr-add-entry-btn {
+  display: block;
+  width: 100%;
+  padding: 0.5rem;
+  margin-top: 0.5rem;
+  border: 1px dashed rgba(79, 70, 229, 0.4);
+  border-radius: 8px;
+  background: rgba(79, 70, 229, 0.05);
+  color: #a5b4fc;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.rrr-add-entry-btn:hover {
+  background: rgba(79, 70, 229, 0.15);
+  border-color: rgba(79, 70, 229, 0.6);
+}
+
+/* RRR Overview Tab — expandable cards */
+.rrr-overview-card {
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 8px;
+  margin-bottom: 0.4rem;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.rrr-overview-card.expanded {
+  border-color: rgba(79, 70, 229, 0.4);
+}
+
+.rrr-overview-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: none;
+  background: rgba(15, 23, 42, 0.5);
+  color: #e2e8f0;
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.rrr-overview-header:hover {
+  background: rgba(79, 70, 229, 0.1);
+}
+
+.rrr-holder {
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rrr-type-badge {
+  font-size: 0.65rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  background: rgba(79, 70, 229, 0.2);
+  color: #a5b4fc;
+  white-space: nowrap;
+}
+
+.rrr-share {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.rrr-chevron {
+  display: flex;
+  color: #64748b;
+  transition: transform 0.2s;
+}
+
+.rrr-overview-card.expanded .rrr-chevron {
+  transform: rotate(180deg);
+}
+
+.rrr-detail-panel {
+  padding: 0.5rem 0.6rem;
+  background: rgba(15, 23, 42, 0.3);
+  border-top: 1px solid rgba(148, 163, 184, 0.08);
+}
+
+.rrr-sub-section {
+  margin-bottom: 0.5rem;
+}
+
+.rrr-sub-section:last-child {
+  margin-bottom: 0;
+}
+
+.rrr-sub-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.35rem;
+}
+
+.rrr-sub-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.rrr-add-btn {
+  font-size: 0.65rem;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid rgba(79, 70, 229, 0.3);
+  border-radius: 4px;
+  background: transparent;
+  color: #a5b4fc;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.rrr-add-btn:hover {
+  background: rgba(79, 70, 229, 0.15);
+}
+
+.rrr-sub-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.3rem;
+}
+
+.rrr-mini-select {
+  width: 120px;
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  padding: 0.2rem 1.2rem 0.2rem 0.3rem;
+}
+
+.rrr-mini-input {
+  flex: 1;
+  font-size: 0.7rem;
+  padding: 0.2rem 0.3rem;
+}
+
+.rrr-remove-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 4px;
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  font-size: 0.85rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.rrr-remove-btn:hover {
+  background: rgba(239, 68, 68, 0.3);
+}
+
 /* Explode Button */
 .explode-btn {
   display: flex;
