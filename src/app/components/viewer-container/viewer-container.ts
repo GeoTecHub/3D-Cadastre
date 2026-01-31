@@ -8,7 +8,7 @@ import { BuildingInfoPanel } from '../building-info-panel/building-info-panel';
 import { SaveModelDialog, SaveModelResult } from '../dialogs/save-model-dialog/save-model-dialog';
 import { CreateApartmentDialog, CreateApartmentResult } from '../dialogs/create-apartment-dialog/create-apartment-dialog';
 import { Apartment, CityJSONRecord } from '../../services/cityjson.model';
-import { BuildingInfo, extractBuildingInfo } from '../../models/building-info.model';
+import { BuildingInfo, BuildingSummary, extractBuildingInfo } from '../../models/building-info.model';
 
 type ViewerType = 'ninja' | 'threejs';
 
@@ -47,8 +47,13 @@ export class ViewerContainer {
   showCreateApartmentDialog = signal(false);
   selectedRoomsForApartment = signal<string[]>([]);
 
-  // Building info computed from cityjson
+  // Override signal for user edits to summary fields
+  private _buildingInfoOverride = signal<BuildingInfo | null>(null);
+
+  // Building info computed from cityjson, with user edits applied
   buildingInfo = computed<BuildingInfo | null>(() => {
+    const override = this._buildingInfoOverride();
+    if (override) return override;
     const data = this.cityjson();
     if (!data) return null;
     return extractBuildingInfo(data, this.selectedObjectId() || undefined);
@@ -180,6 +185,13 @@ export class ViewerContainer {
     if (this.ninjaViewer) {
       // The viewer will react to focusObjectId input change
     }
+  }
+
+  onSummaryChanged(updated: BuildingSummary): void {
+    const current = this.buildingInfo();
+    if (!current) return;
+    // Update the building info with the new summary values
+    this._buildingInfoOverride.set({ ...current, summary: updated });
   }
 
   // ─── Backend: Save Model ───────────────────────────────────

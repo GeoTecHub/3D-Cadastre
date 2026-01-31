@@ -36,38 +36,99 @@
         </button>
         @if (isSectionExpanded('summary')) {
           <div class="section-content">
-            <table class="info-table">
+            <table class="info-table editable-table">
+              <!-- buildingId: String, Editable -->
               <tr>
                 <td class="label">Building ID</td>
-                <td class="value read-only">{{ buildingInfo()?.summary?.buildingId || 'N/A' }}</td>
+                <td class="value">
+                  <input
+                    type="text"
+                    class="field-input"
+                    [ngModel]="buildingInfo()?.summary?.buildingId ?? ''"
+                    (ngModelChange)="onSummaryFieldChange('buildingId', $event)"
+                    placeholder="e.g., B-8294-X"
+                  />
+                </td>
               </tr>
+              <!-- legalStatus: Enum, Dropdown -->
               <tr>
                 <td class="label">Legal Status</td>
                 <td class="value">
-                  <span class="badge badge-success">{{ getLegalStatusDisplay(buildingInfo()?.summary?.legalStatus) }}</span>
+                  <select
+                    class="field-select"
+                    [ngModel]="buildingInfo()?.summary?.legalStatus ?? ''"
+                    (ngModelChange)="onSummaryFieldChange('legalStatus', $event)">
+                    @for (opt of legalStatusOptions; track opt) {
+                      <option [value]="opt">{{ legalStatusDisplayMap[opt] }}</option>
+                    }
+                  </select>
                 </td>
               </tr>
+              <!-- address: String, Editable, max 255 -->
               <tr>
                 <td class="label">Address</td>
-                <td class="value">{{ buildingInfo()?.summary?.address || 'N/A' }}</td>
+                <td class="value">
+                  <input
+                    type="text"
+                    class="field-input"
+                    [ngModel]="buildingInfo()?.summary?.address ?? ''"
+                    (ngModelChange)="onSummaryFieldChange('address', $event)"
+                    placeholder="Full physical address"
+                    maxlength="255"
+                  />
+                </td>
               </tr>
+              <!-- primaryUse: Enum, Dropdown -->
               <tr>
                 <td class="label">Primary Use</td>
-                <td class="value">{{ getPrimaryUseDisplay(buildingInfo()?.summary?.primaryUse) }}</td>
+                <td class="value">
+                  <select
+                    class="field-select"
+                    [ngModel]="buildingInfo()?.summary?.primaryUse ?? ''"
+                    (ngModelChange)="onSummaryFieldChange('primaryUse', $event)">
+                    @for (opt of primaryUseOptions; track opt) {
+                      <option [value]="opt">{{ primaryUseDisplayMap[opt] }}</option>
+                    }
+                  </select>
+                </td>
               </tr>
+              <!-- cadastralRef: String, Editable link -->
               <tr>
                 <td class="label">Cadastral Ref.</td>
                 <td class="value">
-                  <a class="cadastral-link" title="Navigate to parcel view">{{ buildingInfo()?.summary?.cadastralRef || 'N/A' }}</a>
+                  <input
+                    type="text"
+                    class="field-input cadastral-link-input"
+                    [ngModel]="buildingInfo()?.summary?.cadastralRef ?? ''"
+                    (ngModelChange)="onSummaryFieldChange('cadastralRef', $event)"
+                    placeholder="e.g., Parcel 123"
+                  />
                 </td>
               </tr>
+              <!-- floorCount: Integer, Editable -->
               <tr>
                 <td class="label">Floor Count</td>
-                <td class="value read-only">{{ buildingInfo()?.summary?.floorCount || 'N/A' }}</td>
+                <td class="value">
+                  <input
+                    type="number"
+                    class="field-input"
+                    [ngModel]="buildingInfo()?.summary?.floorCount ?? 0"
+                    (ngModelChange)="onSummaryFieldChange('floorCount', $event)"
+                    min="0"
+                  />
+                </td>
               </tr>
+              <!-- registrationDate: Date (ISO 8601), Editable -->
               <tr>
                 <td class="label">Registration Date</td>
-                <td class="value">{{ buildingInfo()?.summary?.registrationDate || 'N/A' }}</td>
+                <td class="value">
+                  <input
+                    type="date"
+                    class="field-input"
+                    [ngModel]="buildingInfo()?.summary?.registrationDate ?? ''"
+                    (ngModelChange)="onSummaryFieldChange('registrationDate', $event)"
+                  />
+                </td>
               </tr>
             </table>
           </div>
