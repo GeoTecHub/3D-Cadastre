@@ -8,7 +8,7 @@ import { BuildingInfoPanel } from '../building-info-panel/building-info-panel';
 import { SaveModelDialog, SaveModelResult } from '../dialogs/save-model-dialog/save-model-dialog';
 import { CreateApartmentDialog, CreateApartmentResult } from '../dialogs/create-apartment-dialog/create-apartment-dialog';
 import { Apartment, CityJSONRecord } from '../../services/cityjson.model';
-import { BuildingInfo, BuildingSummary, extractBuildingInfo } from '../../models/building-info.model';
+import { BuildingInfo, BuildingSummary, RRRInfo, extractBuildingInfo } from '../../models/building-info.model';
 
 type ViewerType = 'ninja' | 'threejs';
 
@@ -190,8 +190,13 @@ export class ViewerContainer {
   onSummaryChanged(updated: BuildingSummary): void {
     const current = this.buildingInfo();
     if (!current) return;
-    // Update the building info with the new summary values
     this._buildingInfoOverride.set({ ...current, summary: updated });
+  }
+
+  onRRRChanged(updated: RRRInfo): void {
+    const current = this.buildingInfo();
+    if (!current) return;
+    this._buildingInfoOverride.set({ ...current, rrr: updated });
   }
 
   // ─── Backend: Save Model ───────────────────────────────────
