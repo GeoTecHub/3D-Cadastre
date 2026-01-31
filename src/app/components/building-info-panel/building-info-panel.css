@@ -790,6 +790,15 @@
   margin: 0.5rem 0;
 }
 
+.rrr-holder-cell {
+  color: #94a3b8;
+  font-size: 0.7rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80px;
+}
+
 /* Responsive */
 @media (max-width: 1200px) {
   .info-panel {

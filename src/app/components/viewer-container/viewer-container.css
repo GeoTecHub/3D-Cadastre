@@ -226,8 +226,26 @@
 }
 
 .right-sidebar {
-  width: 340px;
   border-left: 1px solid rgba(148, 163, 184, 0.1);
+  position: relative;
+  flex-shrink: 0;
+}
+
+.resize-handle {
+  position: absolute;
+  left: -3px;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 20;
+  background: transparent;
+  transition: background 0.15s;
+}
+
+.resize-handle:hover,
+.resize-handle:active {
+  background: rgba(79, 70, 229, 0.5);
 }
 
 .sidebar-toggle {
@@ -597,7 +615,7 @@
 /* Responsive */
 @media (max-width: 1400px) {
   .right-sidebar {
-    width: 300px;
+    max-width: 300px;
   }
 }
 
@@ -607,7 +625,7 @@
   }
 
   .right-sidebar {
-    width: 280px;
+    max-width: 280px;
   }
 
   .toolbar-btn span {
@@ -647,7 +665,7 @@
   }
 
   .right-sidebar {
-    width: 260px;
+    max-width: 260px;
   }
 }
 
