@@ -47,6 +47,10 @@ export class ViewerContainer {
   showCreateApartmentDialog = signal(false);
   selectedRoomsForApartment = signal<string[]>([]);
 
+  // Resizable sidebar
+  sidebarWidth = signal(340);
+  private _resizing = false;
+
   // Override signal for user edits to summary fields
   private _buildingInfoOverride = signal<BuildingInfo | null>(null);
 
@@ -297,6 +301,35 @@ export class ViewerContainer {
     } finally {
       this.isSaving.set(false);
     }
+  }
+
+  // ─── Sidebar Resize ──────────────────────────────────────
+
+  onResizeStart(event: MouseEvent): void {
+    event.preventDefault();
+    this._resizing = true;
+    const startX = event.clientX;
+    const startWidth = this.sidebarWidth();
+
+    const onMove = (e: MouseEvent) => {
+      if (!this._resizing) return;
+      const delta = startX - e.clientX;
+      const newWidth = Math.max(240, Math.min(600, startWidth + delta));
+      this.sidebarWidth.set(newWidth);
+    };
+
+    const onUp = () => {
+      this._resizing = false;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
   }
 
   private async loadDefaultModel(): Promise<void> {

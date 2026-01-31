@@ -26,7 +26,7 @@ import {
 } from '../../models/building-info.model';
 
 type RRRTab = 'overview' | 'ownership';
-type CollapsibleSection = 'summary' | 'spatial' | 'rrr' | 'units' | 'physical' | 'relationships' | 'metadata';
+type CollapsibleSection = 'summary' | 'spatial' | 'rrr' | 'restrictions' | 'responsibilities' | 'units' | 'physical' | 'relationships' | 'metadata';
 
 @Component({
   selector: 'app-building-info-panel',
@@ -192,6 +192,57 @@ export class BuildingInfoPanel {
       restrictions: [],
       responsibilities: []
     });
+    this.emitRRRUpdate(entries);
+  }
+
+  removeRRREntry(index: number): void {
+    const entries = this.cloneEntries();
+    if (!entries[index]) return;
+    entries.splice(index, 1);
+    this.emitRRRUpdate(entries);
+  }
+
+  // ─── Standalone Restrictions (across all entries) ─────────
+
+  /** Flat list of all restrictions across all RRR entries, with their parent entry index */
+  getAllRestrictions(): { entryIndex: number; restrictionIndex: number; holder: string; restriction: RRRRestriction }[] {
+    const info = this.buildingInfo();
+    if (!info) return [];
+    const result: { entryIndex: number; restrictionIndex: number; holder: string; restriction: RRRRestriction }[] = [];
+    info.rrr.entries.forEach((entry, ei) => {
+      entry.restrictions.forEach((r, ri) => {
+        result.push({ entryIndex: ei, restrictionIndex: ri, holder: entry.holder, restriction: r });
+      });
+    });
+    return result;
+  }
+
+  addStandaloneRestriction(): void {
+    const entries = this.cloneEntries();
+    if (entries.length === 0) return;
+    // Add to the first entry by default
+    entries[0].restrictions.push({ type: RestrictionType.RES_EAS, description: '' });
+    this.emitRRRUpdate(entries);
+  }
+
+  // ─── Standalone Responsibilities (across all entries) ─────
+
+  getAllResponsibilities(): { entryIndex: number; responsibilityIndex: number; holder: string; responsibility: RRRResponsibility }[] {
+    const info = this.buildingInfo();
+    if (!info) return [];
+    const result: { entryIndex: number; responsibilityIndex: number; holder: string; responsibility: RRRResponsibility }[] = [];
+    info.rrr.entries.forEach((entry, ei) => {
+      entry.responsibilities.forEach((r, ri) => {
+        result.push({ entryIndex: ei, responsibilityIndex: ri, holder: entry.holder, responsibility: r });
+      });
+    });
+    return result;
+  }
+
+  addStandaloneResponsibility(): void {
+    const entries = this.cloneEntries();
+    if (entries.length === 0) return;
+    entries[0].responsibilities.push({ type: ResponsibilityType.RSP_MAINT, description: '' });
     this.emitRRRUpdate(entries);
   }
 

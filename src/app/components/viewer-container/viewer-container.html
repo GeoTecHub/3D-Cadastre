@@ -164,7 +164,8 @@
     </section>
 
     <!-- Right Sidebar - Building Info Panel -->
-    <aside class="sidebar right-sidebar">
+    <aside class="sidebar right-sidebar" [style.width.px]="sidebarWidth()">
+      <div class="resize-handle" (mousedown)="onResizeStart($event)"></div>
       <app-building-info-panel
         [buildingInfo]="buildingInfo()"
         [selectedUnitId]="selectedObjectId()"
