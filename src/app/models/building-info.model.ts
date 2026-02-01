@@ -338,6 +338,7 @@ export interface BuildingUnit {
   floorArea: number;
   registrationDate: string;
   primaryUse: PrimaryUse;
+  rooms: string[];        // CityJSON object IDs of rooms composing this unit
   tax: UnitTaxValuation;
   rrr: RRRInfo;
 }
@@ -450,6 +451,7 @@ export function extractBuildingInfo(cityjson: any, objectId?: string): BuildingI
         floorArea: attrs.area || attrs.floorArea || 0,
         registrationDate: attrs.registrationDate || new Date().toISOString().split('T')[0],
         primaryUse: resolvePrimaryUse(attrs.primaryUse || attrs.usage),
+        rooms: [key],
         tax: {
           taxUnitArea: attrs.taxUnitArea || attrs.area || 0,
           assessedValue: attrs.assessedValue || 0,

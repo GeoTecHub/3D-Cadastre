@@ -1,4 +1,4 @@
-import { Component, Inject, PLATFORM_ID, signal, effect, inject, ViewChild, computed, NgZone } from '@angular/core';
+import { Component, Inject, PLATFORM_ID, signal, effect, inject, ViewChild, computed, NgZone, untracked } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { CityjsonService } from '../../services/cityjson';
@@ -56,6 +56,10 @@ export class ViewerContainer {
   sidebarWidth = signal(340);
   private _resizing = false;
 
+  // Room selection state
+  pendingRoomSelection = signal<string[]>([]);
+  private _selectingForUnitIndex = signal<number | null>(null);
+
   // Override signal for user edits to summary fields
   private _buildingInfoOverride = signal<BuildingInfo | null>(null);
 
@@ -66,6 +70,32 @@ export class ViewerContainer {
     const data = this.cityjson();
     if (!data) return null;
     return extractBuildingInfo(data, this.selectedObjectId() || undefined);
+  });
+
+  // Whether a model is currently loaded
+  modelLoaded = computed(() => !!this.cityjson());
+
+  // Extract all Room/BuildingRoom IDs from the CityJSON data
+  availableRooms = computed<string[]>(() => {
+    const data = this.cityjson();
+    if (!data || !data.CityObjects) return [];
+    return Object.keys(data.CityObjects).filter(key => {
+      const type = data.CityObjects[key].type;
+      return type === 'BuildingRoom' || type === 'Room';
+    });
+  });
+
+  // Build a roomId → unitId map from current building info units
+  assignedRoomMap = computed<Record<string, string>>(() => {
+    const info = this.buildingInfo();
+    if (!info) return {};
+    const map: Record<string, string> = {};
+    info.units.forEach(unit => {
+      unit.rooms.forEach(roomId => {
+        map[roomId] = unit.unitId;
+      });
+    });
+    return map;
   });
 
   private readonly defaultModelUrl = '/lod2_appartment.city.json';
@@ -335,6 +365,85 @@ export class ViewerContainer {
       this.saveStatus.set(error instanceof Error ? error.message : 'Failed to save apartment.');
     } finally {
       this.isSaving.set(false);
+    }
+  }
+
+  // ─── Panel: Save/Delete Building ─────────────────────────
+
+  onSaveModelRequested(): void {
+    this.openSaveModelDialog();
+  }
+
+  onSaveBuildingRequested(info: BuildingInfo): void {
+    // Persist the building info override and trigger backend save
+    this._buildingInfoOverride.set(info);
+    this.saveStatus.set('Building details saved locally.');
+    // Backend persistence will be handled by user's extended service
+  }
+
+  onDeleteBuildingRequested(): void {
+    this._buildingInfoOverride.set(null);
+    this.selectedObjectId.set(null);
+    this.saveStatus.set('Building details cleared.');
+  }
+
+  // ─── Panel: Room Selection Orchestration ────────────────
+
+  onStartRoomSelection(event: { unitIndex: number; existingRooms: string[] }): void {
+    this._selectingForUnitIndex.set(event.unitIndex);
+    // Pre-populate with existing rooms
+    this.pendingRoomSelection.set([...event.existingRooms]);
+
+    if (this.ninjaViewer) {
+      this.ninjaViewer.startApartmentCreationMode();
+      // Pre-select existing rooms in the viewer
+      event.existingRooms.forEach(roomId => {
+        const meshes = (this.ninjaViewer as any).findAllMeshesByObjectId?.(roomId);
+        if (meshes?.length) {
+          meshes.forEach((m: any) => {
+            m.material = (this.ninjaViewer as any).wireframeRoomMaterial;
+          });
+        }
+      });
+      this.ninjaViewer.currentRoomSelection = [...event.existingRooms];
+    }
+  }
+
+  onFinishRoomSelection(event: { unitIndex: number; rooms: string[] }): void {
+    // Get the final selection from the viewer
+    if (this.ninjaViewer) {
+      const viewerSelection = this.ninjaViewer.getCurrentRoomSelection();
+      event.rooms = viewerSelection;
+      this.ninjaViewer.cancelCreationMode();
+    }
+
+    // Update the building info with the new room assignment
+    const current = this.buildingInfo();
+    if (current && current.units[event.unitIndex]) {
+      const updatedUnits = current.units.map((u, i) => {
+        if (i === event.unitIndex) {
+          return { ...u, rooms: [...event.rooms] };
+        }
+        return u;
+      });
+      this._buildingInfoOverride.set({ ...current, units: updatedUnits });
+    }
+
+    this._selectingForUnitIndex.set(null);
+    this.pendingRoomSelection.set([]);
+  }
+
+  onCancelRoomSelection(): void {
+    if (this.ninjaViewer) {
+      this.ninjaViewer.cancelCreationMode();
+    }
+    this._selectingForUnitIndex.set(null);
+    this.pendingRoomSelection.set([]);
+  }
+
+  onHighlightRooms(roomIds: string[]): void {
+    if (this.ninjaViewer) {
+      this.ninjaViewer.highlightRoomIds(roomIds);
     }
   }
 

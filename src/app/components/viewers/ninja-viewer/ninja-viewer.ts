@@ -162,6 +162,7 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     this.structuralSolidMaterial.dispose();
     this.ghostRoomMaterial.dispose();
     this.wireframeRoomMaterial.dispose();
+    this.highlightMaterial.dispose();
 
     this.renderer?.dispose();
   }
@@ -693,6 +694,66 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
 
   public getCurrentRoomSelection(): string[] {
     return [...this.currentRoomSelection];
+  }
+
+  // ─── Highlight Rooms (for unit-click in panel) ─────────────
+
+  private readonly highlightMaterial = new THREE.MeshStandardMaterial({
+    color: 0xffaa00,  // Orange highlight
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.85,
+    metalness: 0,
+    roughness: 0.8
+  });
+
+  private highlightedRoomIds: string[] = [];
+
+  /**
+   * Highlights specific rooms in the 3D viewer when a unit card is clicked.
+   * Restores previous highlights before applying new ones.
+   */
+  public highlightRoomIds(roomIds: string[]): void {
+    // Restore previously highlighted rooms
+    this.clearRoomHighlights();
+
+    if (!roomIds.length || !this.cityModel) return;
+
+    this.highlightedRoomIds = [...roomIds];
+
+    roomIds.forEach(roomId => {
+      const meshes = this.findAllMeshesByObjectId(roomId);
+      meshes.forEach(mesh => {
+        if (!mesh.userData['__highlightOriginalMaterial']) {
+          mesh.userData['__highlightOriginalMaterial'] = mesh.material;
+        }
+        mesh.material = this.highlightMaterial;
+      });
+    });
+
+    // Create outline around all highlighted meshes
+    const allMeshes: THREE.Mesh[] = [];
+    roomIds.forEach(id => {
+      allMeshes.push(...this.findAllMeshesByObjectId(id));
+    });
+    this.createOutlineForMeshes(allMeshes);
+  }
+
+  private clearRoomHighlights(): void {
+    if (!this.highlightedRoomIds.length) return;
+
+    this.highlightedRoomIds.forEach(roomId => {
+      const meshes = this.findAllMeshesByObjectId(roomId);
+      meshes.forEach(mesh => {
+        const original = mesh.userData['__highlightOriginalMaterial'];
+        if (original) {
+          mesh.material = original;
+          delete mesh.userData['__highlightOriginalMaterial'];
+        }
+      });
+    });
+    this.highlightedRoomIds = [];
+    this.removeOutline();
   }
 
   // ─── Explode View ───────────────────────────────────────────

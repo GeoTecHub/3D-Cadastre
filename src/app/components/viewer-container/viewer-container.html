@@ -169,6 +169,10 @@
       <app-building-info-panel
         [buildingInfo]="buildingInfo()"
         [selectedUnitId]="selectedObjectId()"
+        [modelLoaded]="modelLoaded()"
+        [availableRooms]="availableRooms()"
+        [assignedRoomMap]="assignedRoomMap()"
+        [pendingRoomSelection]="pendingRoomSelection()"
         (unitSelected)="onUnitSelected($event)"
         (explodeViewRequested)="onExplodeViewRequested()"
         (summaryChanged)="onSummaryChanged($event)"
@@ -177,7 +181,14 @@
         (spatialChanged)="onSpatialChanged($event)"
         (physicalChanged)="onPhysicalChanged($event)"
         (relationshipsChanged)="onRelationshipsChanged($event)"
-        (metadataChanged)="onMetadataChanged($event)">
+        (metadataChanged)="onMetadataChanged($event)"
+        (saveModelRequested)="onSaveModelRequested()"
+        (saveBuildingRequested)="onSaveBuildingRequested($event)"
+        (deleteBuildingRequested)="onDeleteBuildingRequested()"
+        (startRoomSelection)="onStartRoomSelection($event)"
+        (finishRoomSelection)="onFinishRoomSelection($event)"
+        (cancelRoomSelection)="onCancelRoomSelection()"
+        (highlightRooms)="onHighlightRooms($event)">
       </app-building-info-panel>
     </aside>
   </div>
