@@ -8,7 +8,11 @@ import { BuildingInfoPanel } from '../building-info-panel/building-info-panel';
 import { SaveModelDialog, SaveModelResult } from '../dialogs/save-model-dialog/save-model-dialog';
 import { CreateApartmentDialog, CreateApartmentResult } from '../dialogs/create-apartment-dialog/create-apartment-dialog';
 import { Apartment, CityJSONRecord } from '../../services/cityjson.model';
-import { BuildingInfo, BuildingSummary, BuildingUnit, RRRInfo, extractBuildingInfo } from '../../models/building-info.model';
+import {
+  BuildingInfo, BuildingSummary, BuildingUnit, RRRInfo,
+  SpatialInfo, PhysicalAttributes, RelationshipsTopology, MetadataQuality,
+  extractBuildingInfo
+} from '../../models/building-info.model';
 
 type ViewerType = 'ninja' | 'threejs';
 
@@ -208,6 +212,30 @@ export class ViewerContainer {
     const current = this.buildingInfo();
     if (!current) return;
     this._buildingInfoOverride.set({ ...current, units: updated });
+  }
+
+  onSpatialChanged(updated: SpatialInfo): void {
+    const current = this.buildingInfo();
+    if (!current) return;
+    this._buildingInfoOverride.set({ ...current, spatial: updated });
+  }
+
+  onPhysicalChanged(updated: PhysicalAttributes): void {
+    const current = this.buildingInfo();
+    if (!current) return;
+    this._buildingInfoOverride.set({ ...current, physicalAttributes: updated });
+  }
+
+  onRelationshipsChanged(updated: RelationshipsTopology): void {
+    const current = this.buildingInfo();
+    if (!current) return;
+    this._buildingInfoOverride.set({ ...current, relationshipsTopology: updated });
+  }
+
+  onMetadataChanged(updated: MetadataQuality): void {
+    const current = this.buildingInfo();
+    if (!current) return;
+    this._buildingInfoOverride.set({ ...current, metadataQuality: updated });
   }
 
   // ─── Backend: Save Model ───────────────────────────────────
