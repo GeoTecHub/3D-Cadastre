@@ -26,7 +26,7 @@ import {
 } from '../../models/building-info.model';
 
 type RRRTab = 'overview' | 'ownership';
-type CollapsibleSection = 'summary' | 'spatial' | 'rrr' | 'restrictions' | 'responsibilities' | 'units' | 'physical' | 'relationships' | 'metadata';
+type CollapsibleSection = 'summary' | 'spatial' | 'rrr' | 'units' | 'physical' | 'relationships' | 'metadata';
 
 @Component({
   selector: 'app-building-info-panel',
