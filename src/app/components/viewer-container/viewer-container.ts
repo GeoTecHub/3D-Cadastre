@@ -1,4 +1,4 @@
-import { Component, Inject, PLATFORM_ID, signal, effect, inject, ViewChild, computed } from '@angular/core';
+import { Component, Inject, PLATFORM_ID, signal, effect, inject, ViewChild, computed, NgZone } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { CityjsonService } from '../../services/cityjson';
@@ -22,6 +22,7 @@ type ViewerType = 'ninja' | 'threejs';
 export class ViewerContainer {
   private readonly cityjsonService = inject(CityjsonService);
   private readonly backendService = inject(BackendService);
+  private readonly ngZone = inject(NgZone);
 
   @ViewChild(NinjaViewer) ninjaViewer!: NinjaViewer;
 
@@ -315,7 +316,7 @@ export class ViewerContainer {
       if (!this._resizing) return;
       const delta = startX - e.clientX;
       const newWidth = Math.max(240, Math.min(600, startWidth + delta));
-      this.sidebarWidth.set(newWidth);
+      this.ngZone.run(() => this.sidebarWidth.set(newWidth));
     };
 
     const onUp = () => {
