@@ -530,68 +530,270 @@
               Explode View
             </button>
 
+            <!-- Unit Cards -->
             <div class="units-list">
               @if (buildingInfo()?.units?.length) {
-                @for (unit of buildingInfo()?.units; track unit.unitId) {
-                  <button
-                    class="unit-item"
-                    [class.selected]="selectedUnit()?.unitId === unit.unitId"
-                    (click)="selectUnit(unit)">
-                    <div class="unit-main">
-                      <span class="unit-id">{{ unit.unitId }}</span>
-                      <span class="unit-type">{{ unit.unitType }}</span>
-                    </div>
-                    <div class="unit-meta">
-                      <span class="unit-floor">Floor {{ unit.floor }}</span>
-                      <span class="unit-status" [class]="getStatusClass(unit.status)">
-                        {{ unit.status }}
-                      </span>
-                    </div>
-                  </button>
+                @for (unit of buildingInfo()!.units; track unit.unitId; let ui = $index) {
+                  <div class="unit-card" [class.expanded]="expandedUnitId() === unit.unitId">
+                    <!-- Unit Header (clickable to expand) -->
+                    <button class="unit-card-header" (click)="toggleUnitExpand(unit.unitId); selectUnit(unit)">
+                      <div class="unit-main">
+                        <span class="unit-id">{{ unit.unitId }}</span>
+                        <span class="rrr-type-badge">{{ unitTypeDisplayMap[unit.unitType] }}</span>
+                      </div>
+                      <div class="unit-meta">
+                        <span class="unit-floor">Floor {{ unit.floorNumber }}</span>
+                        <button class="rrr-remove-btn" (click)="removeUnit(ui); $event.stopPropagation()" title="Delete unit">&times;</button>
+                      </div>
+                    </button>
+
+                    <!-- Expanded Unit Details -->
+                    @if (expandedUnitId() === unit.unitId) {
+                      <div class="unit-detail-panel">
+
+                        <!-- Unit Info Fields -->
+                        <div class="rrr-subsection">
+                          <div class="rrr-subsection-header">
+                            <h4 class="rrr-subsection-title">Unit Information</h4>
+                          </div>
+                          <table class="info-table editable-table">
+                            <tr>
+                              <td class="label">Unit ID</td>
+                              <td class="value">
+                                <input type="text" class="field-input" [ngModel]="unit.unitId"
+                                  (ngModelChange)="onUnitFieldChange(ui, 'unitId', $event)" />
+                              </td>
+                            </tr>
+                            <tr>
+                              <td class="label">Unit Type</td>
+                              <td class="value">
+                                <select class="field-select" [ngModel]="unit.unitType"
+                                  (ngModelChange)="onUnitFieldChange(ui, 'unitType', $event)">
+                                  @for (opt of unitTypeOptions; track opt) {
+                                    <option [value]="opt">{{ unitTypeDisplayMap[opt] }}</option>
+                                  }
+                                </select>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td class="label">Primary Use</td>
+                              <td class="value">
+                                <select class="field-select" [ngModel]="unit.primaryUse"
+                                  (ngModelChange)="onUnitFieldChange(ui, 'primaryUse', $event)">
+                                  @for (opt of primaryUseOptions; track opt) {
+                                    <option [value]="opt">{{ primaryUseDisplayMap[opt] }}</option>
+                                  }
+                                </select>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td class="label">Floor Number</td>
+                              <td class="value">
+                                <input type="number" class="field-input" [ngModel]="unit.floorNumber"
+                                  (ngModelChange)="onUnitFieldChange(ui, 'floorNumber', $event)" />
+                              </td>
+                            </tr>
+                            <tr>
+                              <td class="label">Access Type</td>
+                              <td class="value">
+                                <select class="field-select" [ngModel]="unit.accessType"
+                                  (ngModelChange)="onUnitFieldChange(ui, 'accessType', $event)">
+                                  @for (opt of accessTypeOptions; track opt) {
+                                    <option [value]="opt">{{ accessTypeDisplayMap[opt] }}</option>
+                                  }
+                                </select>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td class="label">Cadastral Ref</td>
+                              <td class="value">
+                                <input type="text" class="field-input" [ngModel]="unit.cadastralRef"
+                                  (ngModelChange)="onUnitFieldChange(ui, 'cadastralRef', $event)" placeholder="e.g., Unit-Parcel 123" />
+                              </td>
+                            </tr>
+                            <tr>
+                              <td class="label">Floor Area</td>
+                              <td class="value">
+                                <input type="number" class="field-input" [ngModel]="unit.floorArea"
+                                  (ngModelChange)="onUnitFieldChange(ui, 'floorArea', $event)" min="0" /> m²
+                              </td>
+                            </tr>
+                            <tr>
+                              <td class="label">Registration Date</td>
+                              <td class="value">
+                                <input type="date" class="field-input" [ngModel]="unit.registrationDate"
+                                  (ngModelChange)="onUnitFieldChange(ui, 'registrationDate', $event)" />
+                              </td>
+                            </tr>
+                            <tr>
+                              <td class="label">Boundary</td>
+                              <td class="value read-only">{{ unit.boundary }}</td>
+                            </tr>
+                          </table>
+                        </div>
+
+                        <!-- Unit Tax & Valuation -->
+                        <div class="rrr-subsection">
+                          <div class="rrr-subsection-header">
+                            <h4 class="rrr-subsection-title">Tax & Valuation</h4>
+                          </div>
+                          <table class="info-table editable-table">
+                            <tr>
+                              <td class="label">Tax Unit Area</td>
+                              <td class="value">
+                                <input type="number" class="field-input" [ngModel]="unit.tax.taxUnitArea"
+                                  (ngModelChange)="onUnitTaxFieldChange(ui, 'taxUnitArea', $event)" min="0" /> m²
+                              </td>
+                            </tr>
+                            <tr>
+                              <td class="label">Assessed Value</td>
+                              <td class="value">
+                                <input type="number" class="field-input" [ngModel]="unit.tax.assessedValue"
+                                  (ngModelChange)="onUnitTaxFieldChange(ui, 'assessedValue', $event)" min="0" />
+                              </td>
+                            </tr>
+                            <tr>
+                              <td class="label">Last Valuation Date</td>
+                              <td class="value">
+                                <input type="date" class="field-input" [ngModel]="unit.tax.lastValuationDate"
+                                  (ngModelChange)="onUnitTaxFieldChange(ui, 'lastValuationDate', $event)" />
+                              </td>
+                            </tr>
+                            <tr>
+                              <td class="label">Tax Due</td>
+                              <td class="value">
+                                <input type="number" class="field-input" [ngModel]="unit.tax.taxDue"
+                                  (ngModelChange)="onUnitTaxFieldChange(ui, 'taxDue', $event)" min="0" />
+                              </td>
+                            </tr>
+                          </table>
+                        </div>
+
+                        <!-- Unit RRR -->
+                        <div class="rrr-subsection">
+                          <div class="rrr-subsection-header">
+                            <h4 class="rrr-subsection-title">Rights, Restrictions & Responsibilities</h4>
+                            <span class="unit-count">{{ unit.rrr.entries.length }}</span>
+                          </div>
+                          <div class="rrr-table-wrapper">
+                            <table class="rrr-table">
+                              <thead>
+                                <tr>
+                                  <th>Holder</th>
+                                  <th>Type</th>
+                                  <th>Share</th>
+                                  <th></th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                @if (unit.rrr.entries.length) {
+                                  @for (entry of unit.rrr.entries; track entry.rrrId; let ei = $index) {
+                                    <tr class="rrr-data-row" (click)="toggleUnitRRRExpand(entry.rrrId)">
+                                      <td>
+                                        <input type="text" class="field-input rrr-cell-input" [ngModel]="entry.holder"
+                                          (ngModelChange)="onUnitRRRFieldChange(ui, ei, 'holder', $event)" (click)="$event.stopPropagation()" placeholder="Name" />
+                                      </td>
+                                      <td>
+                                        <select class="field-select rrr-cell-select" [ngModel]="entry.type"
+                                          (ngModelChange)="onUnitRRRFieldChange(ui, ei, 'type', $event)" (click)="$event.stopPropagation()">
+                                          @for (opt of rightTypeOptions; track opt) {
+                                            <option [value]="opt">{{ rightTypeDisplayMap[opt] }}</option>
+                                          }
+                                        </select>
+                                      </td>
+                                      <td>
+                                        <input type="number" class="field-input rrr-cell-input rrr-share-input" [ngModel]="entry.share"
+                                          (ngModelChange)="onUnitRRRFieldChange(ui, ei, 'share', $event)" (click)="$event.stopPropagation()" min="0" max="100" />
+                                      </td>
+                                      <td>
+                                        <button class="rrr-remove-btn" (click)="removeUnitRRREntry(ui, ei); $event.stopPropagation()" title="Delete">&times;</button>
+                                      </td>
+                                    </tr>
+                                    <!-- Expanded RRR detail with restrictions/responsibilities -->
+                                    @if (expandedUnitRRRId() === entry.rrrId) {
+                                      <tr class="rrr-detail-row">
+                                        <td colspan="4">
+                                          <div class="rrr-detail-inline">
+                                            <div class="rrr-inline-field">
+                                              <span class="label">Valid:</span>
+                                              <input type="date" class="field-input" [ngModel]="entry.validFrom"
+                                                (ngModelChange)="onUnitRRRFieldChange(ui, ei, 'validFrom', $event)" />
+                                              <span>&ndash;</span>
+                                              <input type="date" class="field-input" [ngModel]="entry.validTo"
+                                                (ngModelChange)="onUnitRRRFieldChange(ui, ei, 'validTo', $event)" />
+                                            </div>
+                                          </div>
+                                          <!-- Restrictions -->
+                                          <div class="rrr-sub-section">
+                                            <div class="rrr-sub-header">
+                                              <span class="rrr-sub-title">Restrictions</span>
+                                              <button class="rrr-add-btn" (click)="addUnitRestriction(ui, ei)">+ Add</button>
+                                            </div>
+                                            @if (entry.restrictions.length) {
+                                              @for (r of entry.restrictions; track r.type; let ri = $index) {
+                                                <div class="rrr-sub-row">
+                                                  <select class="field-select rrr-mini-select" [ngModel]="r.type"
+                                                    (ngModelChange)="onUnitRestrictionChange(ui, ei, ri, 'type', $event)">
+                                                    @for (opt of restrictionTypeOptions; track opt) {
+                                                      <option [value]="opt">{{ restrictionTypeDisplayMap[opt] }}</option>
+                                                    }
+                                                  </select>
+                                                  <input type="text" class="field-input rrr-mini-input" [ngModel]="r.description"
+                                                    (ngModelChange)="onUnitRestrictionChange(ui, ei, ri, 'description', $event)" placeholder="Description" />
+                                                  <button class="rrr-remove-btn" (click)="removeUnitRestriction(ui, ei, ri)">&times;</button>
+                                                </div>
+                                              }
+                                            } @else {
+                                              <p class="empty-message">No restrictions</p>
+                                            }
+                                          </div>
+                                          <!-- Responsibilities -->
+                                          <div class="rrr-sub-section">
+                                            <div class="rrr-sub-header">
+                                              <span class="rrr-sub-title">Responsibilities</span>
+                                              <button class="rrr-add-btn" (click)="addUnitResponsibility(ui, ei)">+ Add</button>
+                                            </div>
+                                            @if (entry.responsibilities.length) {
+                                              @for (resp of entry.responsibilities; track resp.type; let rsi = $index) {
+                                                <div class="rrr-sub-row">
+                                                  <select class="field-select rrr-mini-select" [ngModel]="resp.type"
+                                                    (ngModelChange)="onUnitResponsibilityChange(ui, ei, rsi, 'type', $event)">
+                                                    @for (opt of responsibilityTypeOptions; track opt) {
+                                                      <option [value]="opt">{{ responsibilityTypeDisplayMap[opt] }}</option>
+                                                    }
+                                                  </select>
+                                                  <input type="text" class="field-input rrr-mini-input" [ngModel]="resp.description"
+                                                    (ngModelChange)="onUnitResponsibilityChange(ui, ei, rsi, 'description', $event)" placeholder="Description" />
+                                                  <button class="rrr-remove-btn" (click)="removeUnitResponsibility(ui, ei, rsi)">&times;</button>
+                                                </div>
+                                              }
+                                            } @else {
+                                              <p class="empty-message">No responsibilities</p>
+                                            }
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    }
+                                  }
+                                } @else {
+                                  <tr><td colspan="4" class="empty-message">No RRR entries</td></tr>
+                                }
+                              </tbody>
+                            </table>
+                          </div>
+                          <button class="rrr-add-entry-btn" (click)="addUnitRRREntry(ui)">+ Add Right</button>
+                        </div>
+
+                      </div>
+                    }
+                  </div>
                 }
               } @else {
                 <p class="empty-message">No units defined</p>
               }
             </div>
 
-            <!-- Selected Unit Details -->
-            @if (selectedUnit()) {
-              <div class="unit-details">
-                <h4>Unit Details</h4>
-                <table class="info-table compact">
-                  <tr>
-                    <td class="label">Unit ID</td>
-                    <td class="value">{{ selectedUnit()?.unitId }}</td>
-                  </tr>
-                  <tr>
-                    <td class="label">Type</td>
-                    <td class="value">{{ selectedUnit()?.unitType }}</td>
-                  </tr>
-                  <tr>
-                    <td class="label">Floor</td>
-                    <td class="value">{{ selectedUnit()?.floor }}</td>
-                  </tr>
-                  <tr>
-                    <td class="label">Area</td>
-                    <td class="value">{{ formatArea(selectedUnit()?.area) }}</td>
-                  </tr>
-                  <tr>
-                    <td class="label">Status</td>
-                    <td class="value">
-                      <span class="badge" [class]="getStatusClass(selectedUnit()?.status || '')">
-                        {{ selectedUnit()?.status }}
-                      </span>
-                    </td>
-                  </tr>
-                  @if (selectedUnit()?.ownerName) {
-                    <tr>
-                      <td class="label">Owner</td>
-                      <td class="value">{{ selectedUnit()?.ownerName }}</td>
-                    </tr>
-                  }
-                </table>
-              </div>
-            }
+            <button class="rrr-add-entry-btn" (click)="addUnit()">+ Add Unit</button>
           </div>
         }
       </div>

@@ -7,6 +7,7 @@ import {
   BuildingInfo,
   BuildingSummary,
   BuildingUnit,
+  UnitTaxValuation,
   RRREntry,
   RRRInfo,
   RRRRestriction,
@@ -18,11 +19,15 @@ import {
   RightType,
   RestrictionType,
   ResponsibilityType,
+  UnitType,
+  AccessType,
   LEGAL_STATUS_DISPLAY,
   PRIMARY_USE_DISPLAY,
   RIGHT_TYPE_DISPLAY,
   RESTRICTION_TYPE_DISPLAY,
-  RESPONSIBILITY_TYPE_DISPLAY
+  RESPONSIBILITY_TYPE_DISPLAY,
+  UNIT_TYPE_DISPLAY,
+  ACCESS_TYPE_DISPLAY
 } from '../../models/building-info.model';
 
 type RRRTab = 'overview' | 'ownership';
@@ -45,6 +50,7 @@ export class BuildingInfoPanel {
   explodeViewRequested = output<void>();
   summaryChanged = output<BuildingSummary>();
   rrrChanged = output<RRRInfo>();
+  unitsChanged = output<BuildingUnit[]>();
 
   // Enum option lists for dropdown selects
   readonly legalStatusOptions = Object.values(LegalStatus);
@@ -52,18 +58,24 @@ export class BuildingInfoPanel {
   readonly rightTypeOptions = Object.values(RightType);
   readonly restrictionTypeOptions = Object.values(RestrictionType);
   readonly responsibilityTypeOptions = Object.values(ResponsibilityType);
+  readonly unitTypeOptions = Object.values(UnitType);
+  readonly accessTypeOptions = Object.values(AccessType);
 
   readonly legalStatusDisplayMap = LEGAL_STATUS_DISPLAY;
   readonly primaryUseDisplayMap = PRIMARY_USE_DISPLAY;
   readonly rightTypeDisplayMap = RIGHT_TYPE_DISPLAY;
   readonly restrictionTypeDisplayMap = RESTRICTION_TYPE_DISPLAY;
   readonly responsibilityTypeDisplayMap = RESPONSIBILITY_TYPE_DISPLAY;
+  readonly unitTypeDisplayMap = UNIT_TYPE_DISPLAY;
+  readonly accessTypeDisplayMap = ACCESS_TYPE_DISPLAY;
 
   // Local state
   expandedSections = signal<Set<CollapsibleSection>>(new Set(['summary', 'units']));
   activeRRRTab = signal<RRRTab>('ownership');
   selectedUnit = signal<BuildingUnit | null>(null);
   expandedRRRId = signal<string | null>(null);
+  expandedUnitId = signal<string | null>(null);
+  expandedUnitRRRId = signal<string | null>(null);
 
   // Computed values
   hasBuilding = computed(() => this.buildingInfo() !== null);
@@ -294,5 +306,152 @@ export class BuildingInfoPanel {
     if (!entries[entryIndex]?.responsibilities[responsibilityIndex]) return;
     (entries[entryIndex].responsibilities[responsibilityIndex] as any)[field] = value;
     this.emitRRRUpdate(entries);
+  }
+
+  // ─── Unit Editing ──────────────────────────────────────────
+
+  toggleUnitExpand(unitId: string): void {
+    this.expandedUnitId.set(this.expandedUnitId() === unitId ? null : unitId);
+    this.expandedUnitRRRId.set(null);
+  }
+
+  toggleUnitRRRExpand(rrrId: string): void {
+    this.expandedUnitRRRId.set(this.expandedUnitRRRId() === rrrId ? null : rrrId);
+  }
+
+  private cloneUnits(): BuildingUnit[] {
+    const info = this.buildingInfo();
+    if (!info) return [];
+    return info.units.map(u => ({
+      ...u,
+      tax: { ...u.tax },
+      rrr: {
+        entries: u.rrr.entries.map(e => ({
+          ...e,
+          restrictions: e.restrictions.map(r => ({ ...r })),
+          responsibilities: e.responsibilities.map(r => ({ ...r }))
+        }))
+      }
+    }));
+  }
+
+  private emitUnitsUpdate(units: BuildingUnit[]): void {
+    this.unitsChanged.emit(units);
+  }
+
+  onUnitFieldChange(unitIndex: number, field: string, value: any): void {
+    const units = this.cloneUnits();
+    if (!units[unitIndex]) return;
+    (units[unitIndex] as any)[field] = value;
+    this.emitUnitsUpdate(units);
+  }
+
+  onUnitTaxFieldChange(unitIndex: number, field: keyof UnitTaxValuation, value: any): void {
+    const units = this.cloneUnits();
+    if (!units[unitIndex]) return;
+    (units[unitIndex].tax as any)[field] = value;
+    this.emitUnitsUpdate(units);
+  }
+
+  addUnit(): void {
+    const units = this.cloneUnits();
+    const parentId = this.buildingInfo()?.summary?.buildingId || '';
+    units.push({
+      unitId: `U-${Date.now().toString(36).toUpperCase()}`,
+      parentBuilding: parentId,
+      floorNumber: 0,
+      unitType: UnitType.APT,
+      boundary: 'Solid',
+      accessType: AccessType.COR,
+      cadastralRef: '',
+      floorArea: 0,
+      registrationDate: new Date().toISOString().split('T')[0],
+      primaryUse: PrimaryUse.RES,
+      tax: { taxUnitArea: 0, assessedValue: 0, lastValuationDate: '', taxDue: 0 },
+      rrr: { entries: [] }
+    });
+    this.emitUnitsUpdate(units);
+  }
+
+  removeUnit(unitIndex: number): void {
+    const units = this.cloneUnits();
+    if (!units[unitIndex]) return;
+    units.splice(unitIndex, 1);
+    this.emitUnitsUpdate(units);
+  }
+
+  // ─── Unit-level RRR editing ────────────────────────────────
+
+  addUnitRRREntry(unitIndex: number): void {
+    const units = this.cloneUnits();
+    if (!units[unitIndex]) return;
+    units[unitIndex].rrr.entries.push({
+      rrrId: `URRR-${Date.now().toString(36).toUpperCase()}`,
+      type: RightType.OWN_STR,
+      holder: '',
+      share: 0,
+      validFrom: new Date().toISOString().split('T')[0],
+      validTo: '',
+      documentRef: '',
+      restrictions: [],
+      responsibilities: []
+    });
+    this.emitUnitsUpdate(units);
+  }
+
+  removeUnitRRREntry(unitIndex: number, entryIndex: number): void {
+    const units = this.cloneUnits();
+    if (!units[unitIndex]?.rrr?.entries[entryIndex]) return;
+    units[unitIndex].rrr.entries.splice(entryIndex, 1);
+    this.emitUnitsUpdate(units);
+  }
+
+  onUnitRRRFieldChange(unitIndex: number, entryIndex: number, field: keyof RRREntry, value: any): void {
+    const units = this.cloneUnits();
+    if (!units[unitIndex]?.rrr?.entries[entryIndex]) return;
+    (units[unitIndex].rrr.entries[entryIndex] as any)[field] = value;
+    this.emitUnitsUpdate(units);
+  }
+
+  addUnitRestriction(unitIndex: number, entryIndex: number): void {
+    const units = this.cloneUnits();
+    if (!units[unitIndex]?.rrr?.entries[entryIndex]) return;
+    units[unitIndex].rrr.entries[entryIndex].restrictions.push({ type: RestrictionType.RES_EAS, description: '' });
+    this.emitUnitsUpdate(units);
+  }
+
+  removeUnitRestriction(unitIndex: number, entryIndex: number, ri: number): void {
+    const units = this.cloneUnits();
+    if (!units[unitIndex]?.rrr?.entries[entryIndex]) return;
+    units[unitIndex].rrr.entries[entryIndex].restrictions.splice(ri, 1);
+    this.emitUnitsUpdate(units);
+  }
+
+  onUnitRestrictionChange(unitIndex: number, entryIndex: number, ri: number, field: keyof RRRRestriction, value: any): void {
+    const units = this.cloneUnits();
+    if (!units[unitIndex]?.rrr?.entries[entryIndex]?.restrictions[ri]) return;
+    (units[unitIndex].rrr.entries[entryIndex].restrictions[ri] as any)[field] = value;
+    this.emitUnitsUpdate(units);
+  }
+
+  addUnitResponsibility(unitIndex: number, entryIndex: number): void {
+    const units = this.cloneUnits();
+    if (!units[unitIndex]?.rrr?.entries[entryIndex]) return;
+    units[unitIndex].rrr.entries[entryIndex].responsibilities.push({ type: ResponsibilityType.RSP_MAINT, description: '' });
+    this.emitUnitsUpdate(units);
+  }
+
+  removeUnitResponsibility(unitIndex: number, entryIndex: number, ri: number): void {
+    const units = this.cloneUnits();
+    if (!units[unitIndex]?.rrr?.entries[entryIndex]) return;
+    units[unitIndex].rrr.entries[entryIndex].responsibilities.splice(ri, 1);
+    this.emitUnitsUpdate(units);
+  }
+
+  onUnitResponsibilityChange(unitIndex: number, entryIndex: number, ri: number, field: keyof RRRResponsibility, value: any): void {
+    const units = this.cloneUnits();
+    if (!units[unitIndex]?.rrr?.entries[entryIndex]?.responsibilities[ri]) return;
+    (units[unitIndex].rrr.entries[entryIndex].responsibilities[ri] as any)[field] = value;
+    this.emitUnitsUpdate(units);
   }
 }

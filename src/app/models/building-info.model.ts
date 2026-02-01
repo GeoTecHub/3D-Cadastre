@@ -82,6 +82,51 @@ export const RESPONSIBILITY_TYPE_DISPLAY: Record<ResponsibilityType, string> = {
 };
 
 /**
+ * Building Unit / Strata Enums (Section 2.3.2)
+ */
+export enum UnitType {
+  APT = 'APT',
+  OFF = 'OFF',
+  RET = 'RET',
+  COM = 'COM',
+  UTL = 'UTL'
+}
+
+export const UNIT_TYPE_DISPLAY: Record<UnitType, string> = {
+  [UnitType.APT]: 'Apartment',
+  [UnitType.OFF]: 'Office',
+  [UnitType.RET]: 'Retail',
+  [UnitType.COM]: 'Common Area',
+  [UnitType.UTL]: 'Utility'
+};
+
+export enum AccessType {
+  PVT = 'PVT',
+  COR = 'COR',
+  ELV = 'ELV'
+}
+
+export const ACCESS_TYPE_DISPLAY: Record<AccessType, string> = {
+  [AccessType.PVT]: 'Private Entrance',
+  [AccessType.COR]: 'Shared Corridor',
+  [AccessType.ELV]: 'Elevator Lobby'
+};
+
+export enum LodLevel {
+  LOD1 = 'LOD1',
+  LOD2 = 'LOD2',
+  LOD3 = 'LOD3',
+  LOD4 = 'LOD4'
+}
+
+export const LOD_LEVEL_DISPLAY: Record<LodLevel, string> = {
+  [LodLevel.LOD1]: 'LoD1 (Block)',
+  [LodLevel.LOD2]: 'LoD2 (Roof)',
+  [LodLevel.LOD3]: 'LoD3 (Detailed)',
+  [LodLevel.LOD4]: 'LoD4 (Interior)'
+};
+
+/**
  * Summary & Administrative Information (Section 2.1.1)
  */
 export interface BuildingSummary {
@@ -143,16 +188,31 @@ export interface RRRInfo {
 }
 
 /**
- * Building Unit / Strata Information
+ * Unit-level Tax & Valuation
+ */
+export interface UnitTaxValuation {
+  taxUnitArea: number;
+  assessedValue: number;
+  lastValuationDate: string;
+  taxDue: number;
+}
+
+/**
+ * Building Unit / Strata Information (Section 2.3.1)
  */
 export interface BuildingUnit {
-  unitId: string;
-  unitType: string;
-  floor: number;
-  area: number;
-  rooms: string[];
-  ownerName?: string;
-  status: 'occupied' | 'vacant' | 'under_construction';
+  unitId: string;              // Editable, unique ID
+  parentBuilding: string;      // System-Set, FK to BuildingID
+  floorNumber: number;         // Editable, logical floor number
+  unitType: UnitType;          // Enum, Editable
+  boundary: string;            // Read-Only, 3D geometry description
+  accessType: AccessType;      // Enum, Editable
+  cadastralRef: string;        // Editable
+  floorArea: number;           // Editable (m²)
+  registrationDate: string;    // ISO 8601, Editable
+  primaryUse: PrimaryUse;      // Enum, Editable
+  tax: UnitTaxValuation;       // Tax & Valuation for this unit
+  rrr: RRRInfo;                // Rights, Restrictions & Responsibilities for this unit
 }
 
 /**
@@ -251,14 +311,40 @@ export function extractBuildingInfo(cityjson: any, objectId?: string): BuildingI
       const obj = cityObjects[key];
       return obj.type === 'BuildingRoom' || obj.type === 'Room';
     })
-    .map((key, index) => ({
-      unitId: key,
-      unitType: cityObjects[key].attributes?.usage || 'Room',
-      floor: cityObjects[key].attributes?.floor || 0,
-      area: cityObjects[key].attributes?.area || 0,
-      rooms: [key],
-      status: 'occupied' as const
-    }));
+    .map((key) => {
+      const attrs = cityObjects[key].attributes || {};
+      return {
+        unitId: key,
+        parentBuilding: buildingKey!,
+        floorNumber: attrs.floor || attrs.floorNumber || 0,
+        unitType: resolveUnitType(attrs.usage || attrs.unitType),
+        boundary: cityObjects[key].geometry?.[0]?.type || 'Solid',
+        accessType: resolveAccessType(attrs.accessType),
+        cadastralRef: attrs.cadastralRef || '',
+        floorArea: attrs.area || attrs.floorArea || 0,
+        registrationDate: attrs.registrationDate || new Date().toISOString().split('T')[0],
+        primaryUse: resolvePrimaryUse(attrs.primaryUse || attrs.usage),
+        tax: {
+          taxUnitArea: attrs.taxUnitArea || attrs.area || 0,
+          assessedValue: attrs.assessedValue || 0,
+          lastValuationDate: attrs.lastValuationDate || '',
+          taxDue: attrs.taxDue || 0
+        },
+        rrr: {
+          entries: [{
+            rrrId: `URRR-${key}`,
+            type: RightType.OWN_STR,
+            holder: attrs.ownerName || '',
+            share: 100,
+            validFrom: attrs.registrationDate || '2023-01-01',
+            validTo: '',
+            documentRef: '',
+            restrictions: [],
+            responsibilities: []
+          }]
+        }
+      };
+    });
 
   // Calculate geometry info
   let volume = 0;
@@ -374,4 +460,30 @@ function resolvePrimaryUse(raw: string | undefined): PrimaryUse {
   // Try direct enum match
   if (Object.values(PrimaryUse).includes(raw as PrimaryUse)) return raw as PrimaryUse;
   return PrimaryUse.RES;
+}
+
+/**
+ * Resolve raw unitType to UnitType enum.
+ */
+function resolveUnitType(raw: string | undefined): UnitType {
+  if (!raw) return UnitType.APT;
+  const upper = raw.toUpperCase().replace(/[\s_-]/g, '');
+  if (upper.includes('OFFICE') || upper === 'OFF') return UnitType.OFF;
+  if (upper.includes('RETAIL') || upper === 'RET') return UnitType.RET;
+  if (upper.includes('COMMON') || upper === 'COM') return UnitType.COM;
+  if (upper.includes('UTIL') || upper === 'UTL') return UnitType.UTL;
+  if (Object.values(UnitType).includes(raw as UnitType)) return raw as UnitType;
+  return UnitType.APT;
+}
+
+/**
+ * Resolve raw accessType to AccessType enum.
+ */
+function resolveAccessType(raw: string | undefined): AccessType {
+  if (!raw) return AccessType.COR;
+  const upper = raw.toUpperCase().replace(/[\s_-]/g, '');
+  if (upper.includes('PRIVATE') || upper === 'PVT') return AccessType.PVT;
+  if (upper.includes('ELEVATOR') || upper.includes('LIFT') || upper === 'ELV') return AccessType.ELV;
+  if (Object.values(AccessType).includes(raw as AccessType)) return raw as AccessType;
+  return AccessType.COR;
 }
