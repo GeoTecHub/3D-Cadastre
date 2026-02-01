@@ -1,6 +1,6 @@
 // Path: src/app/components/building-info-panel/building-info-panel.ts
 
-import { Component, input, output, signal, computed } from '@angular/core';
+import { Component, input, output, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -64,6 +64,10 @@ export class BuildingInfoPanel {
   // Inputs
   buildingInfo = input<BuildingInfo | null>(null);
   selectedUnitId = input<string | null>(null);
+  modelLoaded = input<boolean>(false);
+  availableRooms = input<string[]>([]);
+  assignedRoomMap = input<Record<string, string>>({});  // roomId -> unitId
+  pendingRoomSelection = input<string[]>([]);           // rooms currently selected in viewer
 
   // Outputs
   unitSelected = output<string>();
@@ -75,6 +79,13 @@ export class BuildingInfoPanel {
   physicalChanged = output<PhysicalAttributes>();
   relationshipsChanged = output<RelationshipsTopology>();
   metadataChanged = output<MetadataQuality>();
+  saveModelRequested = output<void>();
+  saveBuildingRequested = output<BuildingInfo>();
+  deleteBuildingRequested = output<void>();
+  startRoomSelection = output<{ unitIndex: number; existingRooms: string[] }>();
+  finishRoomSelection = output<{ unitIndex: number; rooms: string[] }>();
+  cancelRoomSelection = output<void>();
+  highlightRooms = output<string[]>();
 
   // Enum option lists for dropdown selects
   readonly legalStatusOptions = Object.values(LegalStatus);
@@ -116,8 +127,48 @@ export class BuildingInfoPanel {
   expandedUnitId = signal<string | null>(null);
   expandedUnitRRRId = signal<string | null>(null);
 
+  // Panel mode: 'idle' (no model), 'save-prompt' (model loaded, prompt to save), 'details' (editing building)
+  editMode = signal(false);
+  selectingRoomsForUnit = signal<number | null>(null);
+
   // Computed values
   hasBuilding = computed(() => this.buildingInfo() !== null);
+
+  // Panel state: which view to show
+  panelState = computed<'empty' | 'save-prompt' | 'details'>(() => {
+    if (this.editMode()) return 'details';
+    if (this.modelLoaded()) return 'save-prompt';
+    return 'empty';
+  });
+
+  // Rooms available for assignment (not already assigned to other units)
+  unassignedRooms = computed(() => {
+    const all = this.availableRooms();
+    const map = this.assignedRoomMap();
+    const selectingUnit = this.selectingRoomsForUnit();
+    const info = this.buildingInfo();
+    if (!info || selectingUnit === null) return all;
+    const currentUnitId = info.units[selectingUnit]?.unitId;
+    return all.filter(roomId => {
+      const assignedTo = map[roomId];
+      return !assignedTo || assignedTo === currentUnitId;
+    });
+  });
+
+  constructor() {
+    // Auto-enter details mode when a building is selected via 3D click
+    effect(() => {
+      const info = this.buildingInfo();
+      const loaded = this.modelLoaded();
+      if (info && loaded && !this.editMode()) {
+        // A building was selected in 3D view → enter edit mode
+        this.editMode.set(true);
+      }
+      if (!loaded) {
+        this.editMode.set(false);
+      }
+    });
+  }
 
   toggleSection(section: CollapsibleSection): void {
     const current = this.expandedSections();
@@ -363,6 +414,7 @@ export class BuildingInfoPanel {
     if (!info) return [];
     return info.units.map(u => ({
       ...u,
+      rooms: [...u.rooms],
       tax: { ...u.tax },
       rrr: {
         entries: u.rrr.entries.map(e => ({
@@ -406,6 +458,7 @@ export class BuildingInfoPanel {
       floorArea: 0,
       registrationDate: new Date().toISOString().split('T')[0],
       primaryUse: PrimaryUse.RES,
+      rooms: [],
       tax: { taxUnitArea: 0, assessedValue: 0, lastValuationDate: '', taxDue: 0 },
       rrr: { entries: [] }
     });
@@ -528,5 +581,68 @@ export class BuildingInfoPanel {
     if (!info) return;
     const updated: MetadataQuality = { ...info.metadataQuality, [field]: value };
     this.metadataChanged.emit(updated);
+  }
+
+  // ─── Panel Mode Controls ──────────────────────────────────
+
+  onSaveModelClick(): void {
+    this.saveModelRequested.emit();
+    this.editMode.set(true);
+  }
+
+  onSaveBuilding(): void {
+    const info = this.buildingInfo();
+    if (!info) return;
+    this.saveBuildingRequested.emit(info);
+  }
+
+  onDeleteBuilding(): void {
+    this.deleteBuildingRequested.emit();
+    this.editMode.set(false);
+  }
+
+  // ─── Room Selection for Units ─────────────────────────────
+
+  startRoomSelectionForUnit(unitIndex: number): void {
+    const info = this.buildingInfo();
+    if (!info?.units[unitIndex]) return;
+    this.selectingRoomsForUnit.set(unitIndex);
+    this.startRoomSelection.emit({
+      unitIndex,
+      existingRooms: info.units[unitIndex].rooms
+    });
+  }
+
+  confirmRoomSelection(): void {
+    const unitIndex = this.selectingRoomsForUnit();
+    if (unitIndex === null) return;
+    const rooms = this.pendingRoomSelection();
+    this.finishRoomSelection.emit({ unitIndex, rooms: [...rooms] });
+
+    // Update the unit's rooms
+    const units = this.cloneUnits();
+    if (units[unitIndex]) {
+      units[unitIndex].rooms = [...rooms];
+      this.emitUnitsUpdate(units);
+    }
+    this.selectingRoomsForUnit.set(null);
+  }
+
+  cancelRoomSelectionMode(): void {
+    this.selectingRoomsForUnit.set(null);
+    this.cancelRoomSelection.emit();
+  }
+
+  removeRoomFromUnit(unitIndex: number, roomId: string): void {
+    const units = this.cloneUnits();
+    if (!units[unitIndex]) return;
+    units[unitIndex].rooms = units[unitIndex].rooms.filter(r => r !== roomId);
+    this.emitUnitsUpdate(units);
+  }
+
+  onUnitCardClick(unit: BuildingUnit): void {
+    this.selectedUnit.set(unit);
+    this.unitSelected.emit(unit.unitId);
+    this.highlightRooms.emit(unit.rooms);
   }
 }

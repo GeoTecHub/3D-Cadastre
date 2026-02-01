@@ -3,14 +3,63 @@
     <h2>Building Details</h2>
   </div>
 
-  @if (!hasBuilding()) {
+  <!-- ═══ STATE 1: No Model Loaded ═══ -->
+  @if (panelState() === 'empty') {
     <div class="empty-state">
       <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
         <path d="M3 21h18M3 7v14M21 7v14M6 11h.01M6 15h.01M6 19h.01M10 11h.01M10 15h.01M10 19h.01M14 11h.01M14 15h.01M14 19h.01M18 11h.01M18 15h.01M18 19h.01M9 3h6l3 4H6l3-4z"/>
       </svg>
-      <p>Select a building to view details</p>
+      <p>Import a CityJSON model to begin</p>
     </div>
-  } @else {
+  }
+
+  <!-- ═══ STATE 2: Model Loaded - Save Prompt ═══ -->
+  @if (panelState() === 'save-prompt') {
+    <div class="save-prompt-state">
+      <div class="save-prompt-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+          <line x1="12" y1="22.08" x2="12" y2="12"/>
+        </svg>
+      </div>
+      <h3 class="save-prompt-title">3D Model Loaded</h3>
+      <p class="save-prompt-desc">Save this model to the server and fill in building details, or click a building in the 3D view.</p>
+
+      @if (buildingInfo(); as info) {
+        <div class="model-summary-card">
+          <div class="summary-row">
+            <span class="summary-label">Building ID</span>
+            <span class="summary-value">{{ info.summary.buildingId }}</span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">LoD Level</span>
+            <span class="summary-value">{{ lodLevelDisplayMap[info.spatial.lodLevel] }}</span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">CRS</span>
+            <span class="summary-value">{{ crsDisplayMap[info.spatial.crs] }}</span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">Rooms / Units</span>
+            <span class="summary-value">{{ info.units.length }}</span>
+          </div>
+        </div>
+      }
+
+      <button class="save-model-btn" (click)="onSaveModelClick()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+          <polyline points="17 21 17 13 7 13 7 21"/>
+          <polyline points="7 3 7 8 15 8"/>
+        </svg>
+        Save Model & Fill Details
+      </button>
+    </div>
+  }
+
+  <!-- ═══ STATE 3: Editing Building Details ═══ -->
+  @if (panelState() === 'details' && buildingInfo(); as info) {
     <div class="panel-content">
       <!-- Summary & Administrative Section -->
       <div class="collapsible-section">
@@ -37,26 +86,20 @@
         @if (isSectionExpanded('summary')) {
           <div class="section-content">
             <table class="info-table editable-table">
-              <!-- buildingId: String, Editable -->
               <tr>
                 <td class="label">Building ID</td>
                 <td class="value">
-                  <input
-                    type="text"
-                    class="field-input"
-                    [ngModel]="buildingInfo()?.summary?.buildingId ?? ''"
+                  <input type="text" class="field-input"
+                    [ngModel]="info.summary.buildingId"
                     (ngModelChange)="onSummaryFieldChange('buildingId', $event)"
-                    placeholder="e.g., B-8294-X"
-                  />
+                    placeholder="e.g., B-8294-X" />
                 </td>
               </tr>
-              <!-- legalStatus: Enum, Dropdown -->
               <tr>
                 <td class="label">Legal Status</td>
                 <td class="value">
-                  <select
-                    class="field-select"
-                    [ngModel]="buildingInfo()?.summary?.legalStatus ?? ''"
+                  <select class="field-select"
+                    [ngModel]="info.summary.legalStatus"
                     (ngModelChange)="onSummaryFieldChange('legalStatus', $event)">
                     @for (opt of legalStatusOptions; track opt) {
                       <option [value]="opt">{{ legalStatusDisplayMap[opt] }}</option>
@@ -64,27 +107,20 @@
                   </select>
                 </td>
               </tr>
-              <!-- address: String, Editable, max 255 -->
               <tr>
                 <td class="label">Address</td>
                 <td class="value">
-                  <input
-                    type="text"
-                    class="field-input"
-                    [ngModel]="buildingInfo()?.summary?.address ?? ''"
+                  <input type="text" class="field-input"
+                    [ngModel]="info.summary.address"
                     (ngModelChange)="onSummaryFieldChange('address', $event)"
-                    placeholder="Full physical address"
-                    maxlength="255"
-                  />
+                    placeholder="Full physical address" maxlength="255" />
                 </td>
               </tr>
-              <!-- primaryUse: Enum, Dropdown -->
               <tr>
                 <td class="label">Primary Use</td>
                 <td class="value">
-                  <select
-                    class="field-select"
-                    [ngModel]="buildingInfo()?.summary?.primaryUse ?? ''"
+                  <select class="field-select"
+                    [ngModel]="info.summary.primaryUse"
                     (ngModelChange)="onSummaryFieldChange('primaryUse', $event)">
                     @for (opt of primaryUseOptions; track opt) {
                       <option [value]="opt">{{ primaryUseDisplayMap[opt] }}</option>
@@ -92,42 +128,29 @@
                   </select>
                 </td>
               </tr>
-              <!-- cadastralRef: String, Editable link -->
               <tr>
                 <td class="label">Cadastral Ref.</td>
                 <td class="value">
-                  <input
-                    type="text"
-                    class="field-input cadastral-link-input"
-                    [ngModel]="buildingInfo()?.summary?.cadastralRef ?? ''"
+                  <input type="text" class="field-input cadastral-link-input"
+                    [ngModel]="info.summary.cadastralRef"
                     (ngModelChange)="onSummaryFieldChange('cadastralRef', $event)"
-                    placeholder="e.g., Parcel 123"
-                  />
+                    placeholder="e.g., Parcel 123" />
                 </td>
               </tr>
-              <!-- floorCount: Integer, Editable -->
               <tr>
                 <td class="label">Floor Count</td>
                 <td class="value">
-                  <input
-                    type="number"
-                    class="field-input"
-                    [ngModel]="buildingInfo()?.summary?.floorCount ?? 0"
-                    (ngModelChange)="onSummaryFieldChange('floorCount', $event)"
-                    min="0"
-                  />
+                  <input type="number" class="field-input"
+                    [ngModel]="info.summary.floorCount"
+                    (ngModelChange)="onSummaryFieldChange('floorCount', $event)" min="0" />
                 </td>
               </tr>
-              <!-- registrationDate: Date (ISO 8601), Editable -->
               <tr>
                 <td class="label">Registration Date</td>
                 <td class="value">
-                  <input
-                    type="date"
-                    class="field-input"
-                    [ngModel]="buildingInfo()?.summary?.registrationDate ?? ''"
-                    (ngModelChange)="onSummaryFieldChange('registrationDate', $event)"
-                  />
+                  <input type="date" class="field-input"
+                    [ngModel]="info.summary.registrationDate"
+                    (ngModelChange)="onSummaryFieldChange('registrationDate', $event)" />
                 </td>
               </tr>
             </table>
@@ -137,8 +160,7 @@
 
       <!-- Spatial/Geometric (3D) Section -->
       <div class="collapsible-section">
-        <button
-          class="section-header"
+        <button class="section-header"
           [class.expanded]="isSectionExpanded('spatial')"
           (click)="toggleSection('spatial')">
           <span class="section-icon">
@@ -158,40 +180,33 @@
         @if (isSectionExpanded('spatial')) {
           <div class="section-content">
             <table class="info-table editable-table">
-              <!-- footprint: Read-Only -->
               <tr>
                 <td class="label">Footprint</td>
-                <td class="value read-only">{{ buildingInfo()?.spatial?.footprint || 'N/A' }}</td>
+                <td class="value read-only">{{ info.spatial.footprint || 'N/A' }}</td>
               </tr>
-              <!-- solidGeometry: Read-Only -->
               <tr>
                 <td class="label">Solid Geometry</td>
-                <td class="value read-only">{{ buildingInfo()?.spatial?.solidGeometry || 'N/A' }}</td>
+                <td class="value read-only">{{ info.spatial.solidGeometry || 'N/A' }}</td>
               </tr>
-              <!-- lodLevel: Read-Only Enum -->
               <tr>
                 <td class="label">LoD Level</td>
                 <td class="value">
-                  <span class="badge badge-info">{{ lodLevelDisplayMap[buildingInfo()!.spatial.lodLevel] || 'N/A' }}</span>
+                  <span class="badge badge-info">{{ lodLevelDisplayMap[info.spatial.lodLevel] || 'N/A' }}</span>
                 </td>
               </tr>
-              <!-- height: Read-Only -->
               <tr>
                 <td class="label">Height</td>
-                <td class="value read-only">{{ formatHeight(buildingInfo()?.spatial?.height) }}</td>
+                <td class="value read-only">{{ formatHeight(info.spatial.height) }}</td>
               </tr>
-              <!-- crs: System-Set -->
               <tr>
                 <td class="label">CRS</td>
-                <td class="value read-only">{{ crsDisplayMap[buildingInfo()!.spatial.crs] || 'N/A' }}</td>
+                <td class="value read-only">{{ crsDisplayMap[info.spatial.crs] || 'N/A' }}</td>
               </tr>
-              <!-- elevationRef: Editable Enum -->
               <tr>
                 <td class="label">Elevation Ref.</td>
                 <td class="value">
-                  <select
-                    class="field-select"
-                    [ngModel]="buildingInfo()?.spatial?.elevationRef ?? ''"
+                  <select class="field-select"
+                    [ngModel]="info.spatial.elevationRef"
                     (ngModelChange)="onSpatialFieldChange('elevationRef', $event)">
                     @for (opt of elevationRefOptions; track opt) {
                       <option [value]="opt">{{ elevationRefDisplayMap[opt] }}</option>
@@ -206,8 +221,7 @@
 
       <!-- Rights, Restrictions & Responsibilities (RRR) Section -->
       <div class="collapsible-section">
-        <button
-          class="section-header"
+        <button class="section-header"
           [class.expanded]="isSectionExpanded('rrr')"
           (click)="toggleSection('rrr')">
           <span class="section-icon">
@@ -225,35 +239,20 @@
         </button>
         @if (isSectionExpanded('rrr')) {
           <div class="section-content rrr-section">
-
-            <!-- ═══ Rights Sub-section ═══ -->
+            <!-- Rights Sub-section -->
             <div class="rrr-subsection">
               <div class="rrr-subsection-header">
                 <h4 class="rrr-subsection-title">Rights</h4>
-                <span class="unit-count">{{ buildingInfo()?.rrr?.entries?.length || 0 }}</span>
+                <span class="unit-count">{{ info.rrr.entries.length }}</span>
               </div>
-
-              <!-- Tabs: Overview / Ownership -->
               <div class="tab-bar">
-                <button
-                  class="tab-btn"
-                  [class.active]="activeRRRTab() === 'overview'"
-                  (click)="setRRRTab('overview')">
-                  Overview
-                </button>
-                <button
-                  class="tab-btn"
-                  [class.active]="activeRRRTab() === 'ownership'"
-                  (click)="setRRRTab('ownership')">
-                  Ownership
-                </button>
+                <button class="tab-btn" [class.active]="activeRRRTab() === 'overview'" (click)="setRRRTab('overview')">Overview</button>
+                <button class="tab-btn" [class.active]="activeRRRTab() === 'ownership'" (click)="setRRRTab('ownership')">Ownership</button>
               </div>
-
-              <!-- Overview Tab -->
               @if (activeRRRTab() === 'overview') {
                 <div class="tab-content">
-                  @if (buildingInfo()?.rrr?.entries?.length) {
-                    @for (entry of buildingInfo()!.rrr.entries; track entry.rrrId; let i = $index) {
+                  @if (info.rrr.entries.length) {
+                    @for (entry of info.rrr.entries; track entry.rrrId; let i = $index) {
                       <div class="rrr-overview-card" [class.expanded]="expandedRRRId() === entry.rrrId">
                         <button class="rrr-overview-header" (click)="toggleRRRExpand(entry.rrrId)">
                           <span class="rrr-holder">{{ entry.holder }}</span>
@@ -322,66 +321,33 @@
                   }
                 </div>
               }
-
-              <!-- Ownership Tab (editable table) -->
               @if (activeRRRTab() === 'ownership') {
                 <div class="tab-content">
                   <div class="rrr-table-wrapper">
                     <table class="rrr-table">
                       <thead>
-                        <tr>
-                          <th>Right Holder</th>
-                          <th>Type</th>
-                          <th>Share</th>
-                          <th>Temporal Validity</th>
-                          <th></th>
-                        </tr>
+                        <tr><th>Right Holder</th><th>Type</th><th>Share</th><th>Temporal Validity</th><th></th></tr>
                       </thead>
                       <tbody>
-                        @if (buildingInfo()?.rrr?.entries?.length) {
-                          @for (entry of buildingInfo()!.rrr.entries; track entry.rrrId; let i = $index) {
+                        @if (info.rrr.entries.length) {
+                          @for (entry of info.rrr.entries; track entry.rrrId; let i = $index) {
                             <tr class="rrr-data-row" (click)="toggleRRRExpand(entry.rrrId)">
-                              <td>
-                                <input type="text" class="field-input rrr-cell-input" [ngModel]="entry.holder"
-                                  (ngModelChange)="onRRRFieldChange(i, 'holder', $event)" (click)="$event.stopPropagation()" placeholder="Name" />
-                              </td>
-                              <td>
-                                <select class="field-select rrr-cell-select" [ngModel]="entry.type"
-                                  (ngModelChange)="onRRRFieldChange(i, 'type', $event)" (click)="$event.stopPropagation()">
-                                  @for (opt of rightTypeOptions; track opt) {
-                                    <option [value]="opt">{{ rightTypeDisplayMap[opt] }}</option>
-                                  }
-                                </select>
-                              </td>
-                              <td>
-                                <input type="number" class="field-input rrr-cell-input rrr-share-input" [ngModel]="entry.share"
-                                  (ngModelChange)="onRRRFieldChange(i, 'share', $event)" (click)="$event.stopPropagation()" min="0" max="100" />
-                              </td>
+                              <td><input type="text" class="field-input rrr-cell-input" [ngModel]="entry.holder" (ngModelChange)="onRRRFieldChange(i, 'holder', $event)" (click)="$event.stopPropagation()" placeholder="Name" /></td>
+                              <td><select class="field-select rrr-cell-select" [ngModel]="entry.type" (ngModelChange)="onRRRFieldChange(i, 'type', $event)" (click)="$event.stopPropagation()">@for (opt of rightTypeOptions; track opt) {<option [value]="opt">{{ rightTypeDisplayMap[opt] }}</option>}</select></td>
+                              <td><input type="number" class="field-input rrr-cell-input rrr-share-input" [ngModel]="entry.share" (ngModelChange)="onRRRFieldChange(i, 'share', $event)" (click)="$event.stopPropagation()" min="0" max="100" /></td>
                               <td class="rrr-validity-cell">
-                                <input type="date" class="field-input rrr-cell-input" [ngModel]="entry.validFrom"
-                                  (ngModelChange)="onRRRFieldChange(i, 'validFrom', $event)" (click)="$event.stopPropagation()" />
+                                <input type="date" class="field-input rrr-cell-input" [ngModel]="entry.validFrom" (ngModelChange)="onRRRFieldChange(i, 'validFrom', $event)" (click)="$event.stopPropagation()" />
                                 <span class="rrr-validity-sep">&ndash;</span>
-                                <input type="date" class="field-input rrr-cell-input" [ngModel]="entry.validTo"
-                                  (ngModelChange)="onRRRFieldChange(i, 'validTo', $event)" (click)="$event.stopPropagation()" placeholder="Indefinite" />
+                                <input type="date" class="field-input rrr-cell-input" [ngModel]="entry.validTo" (ngModelChange)="onRRRFieldChange(i, 'validTo', $event)" (click)="$event.stopPropagation()" placeholder="Indefinite" />
                               </td>
-                              <td>
-                                <button class="rrr-remove-btn" (click)="removeRRREntry(i); $event.stopPropagation()" title="Delete entry">&times;</button>
-                              </td>
+                              <td><button class="rrr-remove-btn" (click)="removeRRREntry(i); $event.stopPropagation()" title="Delete entry">&times;</button></td>
                             </tr>
                             @if (expandedRRRId() === entry.rrrId) {
                               <tr class="rrr-detail-row">
                                 <td colspan="5">
                                   <div class="rrr-detail-inline">
-                                    <div class="rrr-inline-field">
-                                      <span class="label">RRR ID:</span>
-                                      <input type="text" class="field-input" [ngModel]="entry.rrrId"
-                                        (ngModelChange)="onRRRFieldChange(i, 'rrrId', $event)" />
-                                    </div>
-                                    <div class="rrr-inline-field">
-                                      <span class="label">Document Ref:</span>
-                                      <input type="text" class="field-input" [ngModel]="entry.documentRef"
-                                        (ngModelChange)="onRRRFieldChange(i, 'documentRef', $event)" placeholder="Path to deed/contract PDF" />
-                                    </div>
+                                    <div class="rrr-inline-field"><span class="label">RRR ID:</span><input type="text" class="field-input" [ngModel]="entry.rrrId" (ngModelChange)="onRRRFieldChange(i, 'rrrId', $event)" /></div>
+                                    <div class="rrr-inline-field"><span class="label">Document Ref:</span><input type="text" class="field-input" [ngModel]="entry.documentRef" (ngModelChange)="onRRRFieldChange(i, 'documentRef', $event)" placeholder="Path to deed/contract PDF" /></div>
                                   </div>
                                 </td>
                               </tr>
@@ -397,8 +363,7 @@
                 </div>
               }
             </div>
-
-            <!-- ═══ Restrictions Sub-section ═══ -->
+            <!-- Restrictions Sub-section -->
             <div class="rrr-subsection">
               <div class="rrr-subsection-header">
                 <h4 class="rrr-subsection-title">Restrictions</h4>
@@ -406,34 +371,15 @@
               </div>
               <div class="rrr-table-wrapper">
                 <table class="rrr-table">
-                  <thead>
-                    <tr>
-                      <th>Type</th>
-                      <th>Description</th>
-                      <th>Holder</th>
-                      <th></th>
-                    </tr>
-                  </thead>
+                  <thead><tr><th>Type</th><th>Description</th><th>Holder</th><th></th></tr></thead>
                   <tbody>
                     @if (getAllRestrictions().length) {
                       @for (item of getAllRestrictions(); track item.entryIndex + '-' + item.restrictionIndex) {
                         <tr>
-                          <td>
-                            <select class="field-select rrr-cell-select" [ngModel]="item.restriction.type"
-                              (ngModelChange)="onRestrictionChange(item.entryIndex, item.restrictionIndex, 'type', $event)">
-                              @for (opt of restrictionTypeOptions; track opt) {
-                                <option [value]="opt">{{ restrictionTypeDisplayMap[opt] }}</option>
-                              }
-                            </select>
-                          </td>
-                          <td>
-                            <input type="text" class="field-input rrr-cell-input" [ngModel]="item.restriction.description"
-                              (ngModelChange)="onRestrictionChange(item.entryIndex, item.restrictionIndex, 'description', $event)" placeholder="Description" />
-                          </td>
+                          <td><select class="field-select rrr-cell-select" [ngModel]="item.restriction.type" (ngModelChange)="onRestrictionChange(item.entryIndex, item.restrictionIndex, 'type', $event)">@for (opt of restrictionTypeOptions; track opt) {<option [value]="opt">{{ restrictionTypeDisplayMap[opt] }}</option>}</select></td>
+                          <td><input type="text" class="field-input rrr-cell-input" [ngModel]="item.restriction.description" (ngModelChange)="onRestrictionChange(item.entryIndex, item.restrictionIndex, 'description', $event)" placeholder="Description" /></td>
                           <td class="rrr-holder-cell">{{ item.holder || '—' }}</td>
-                          <td>
-                            <button class="rrr-remove-btn" (click)="removeRestriction(item.entryIndex, item.restrictionIndex)" title="Delete">&times;</button>
-                          </td>
+                          <td><button class="rrr-remove-btn" (click)="removeRestriction(item.entryIndex, item.restrictionIndex)" title="Delete">&times;</button></td>
                         </tr>
                       }
                     } @else {
@@ -444,8 +390,7 @@
               </div>
               <button class="rrr-add-entry-btn" (click)="addStandaloneRestriction()">+ Add Restriction</button>
             </div>
-
-            <!-- ═══ Responsibilities Sub-section ═══ -->
+            <!-- Responsibilities Sub-section -->
             <div class="rrr-subsection">
               <div class="rrr-subsection-header">
                 <h4 class="rrr-subsection-title">Responsibilities</h4>
@@ -453,34 +398,15 @@
               </div>
               <div class="rrr-table-wrapper">
                 <table class="rrr-table">
-                  <thead>
-                    <tr>
-                      <th>Type</th>
-                      <th>Description</th>
-                      <th>Holder</th>
-                      <th></th>
-                    </tr>
-                  </thead>
+                  <thead><tr><th>Type</th><th>Description</th><th>Holder</th><th></th></tr></thead>
                   <tbody>
                     @if (getAllResponsibilities().length) {
                       @for (item of getAllResponsibilities(); track item.entryIndex + '-' + item.responsibilityIndex) {
                         <tr>
-                          <td>
-                            <select class="field-select rrr-cell-select" [ngModel]="item.responsibility.type"
-                              (ngModelChange)="onResponsibilityChange(item.entryIndex, item.responsibilityIndex, 'type', $event)">
-                              @for (opt of responsibilityTypeOptions; track opt) {
-                                <option [value]="opt">{{ responsibilityTypeDisplayMap[opt] }}</option>
-                              }
-                            </select>
-                          </td>
-                          <td>
-                            <input type="text" class="field-input rrr-cell-input" [ngModel]="item.responsibility.description"
-                              (ngModelChange)="onResponsibilityChange(item.entryIndex, item.responsibilityIndex, 'description', $event)" placeholder="Description" />
-                          </td>
+                          <td><select class="field-select rrr-cell-select" [ngModel]="item.responsibility.type" (ngModelChange)="onResponsibilityChange(item.entryIndex, item.responsibilityIndex, 'type', $event)">@for (opt of responsibilityTypeOptions; track opt) {<option [value]="opt">{{ responsibilityTypeDisplayMap[opt] }}</option>}</select></td>
+                          <td><input type="text" class="field-input rrr-cell-input" [ngModel]="item.responsibility.description" (ngModelChange)="onResponsibilityChange(item.entryIndex, item.responsibilityIndex, 'description', $event)" placeholder="Description" /></td>
                           <td class="rrr-holder-cell">{{ item.holder || '—' }}</td>
-                          <td>
-                            <button class="rrr-remove-btn" (click)="removeResponsibility(item.entryIndex, item.responsibilityIndex)" title="Delete">&times;</button>
-                          </td>
+                          <td><button class="rrr-remove-btn" (click)="removeResponsibility(item.entryIndex, item.responsibilityIndex)" title="Delete">&times;</button></td>
                         </tr>
                       }
                     } @else {
@@ -491,27 +417,23 @@
               </div>
               <button class="rrr-add-entry-btn" (click)="addStandaloneResponsibility()">+ Add Responsibility</button>
             </div>
-
           </div>
         }
       </div>
 
       <!-- Building Units / Strata Section -->
       <div class="collapsible-section">
-        <button
-          class="section-header"
+        <button class="section-header"
           [class.expanded]="isSectionExpanded('units')"
           (click)="toggleSection('units')">
           <span class="section-icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="3" width="7" height="7"/>
-              <rect x="14" y="3" width="7" height="7"/>
-              <rect x="14" y="14" width="7" height="7"/>
-              <rect x="3" y="14" width="7" height="7"/>
+              <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+              <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
             </svg>
           </span>
           <span class="section-title">Building Units / Strata</span>
-          <span class="unit-count">{{ buildingInfo()?.units?.length || 0 }}</span>
+          <span class="unit-count">{{ info.units.length }}</span>
           <span class="chevron">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="6 9 12 15 18 9"/>
@@ -527,26 +449,71 @@
               Explode View
             </button>
 
-            <!-- Unit Cards -->
             <div class="units-list">
-              @if (buildingInfo()?.units?.length) {
-                @for (unit of buildingInfo()!.units; track unit.unitId; let ui = $index) {
+              @if (info.units.length) {
+                @for (unit of info.units; track unit.unitId; let ui = $index) {
                   <div class="unit-card" [class.expanded]="expandedUnitId() === unit.unitId">
-                    <!-- Unit Header (clickable to expand) -->
-                    <button class="unit-card-header" (click)="toggleUnitExpand(unit.unitId); selectUnit(unit)">
+                    <!-- Unit Header -->
+                    <button class="unit-card-header" (click)="toggleUnitExpand(unit.unitId); onUnitCardClick(unit)">
                       <div class="unit-main">
                         <span class="unit-id">{{ unit.unitId }}</span>
                         <span class="rrr-type-badge">{{ unitTypeDisplayMap[unit.unitType] }}</span>
                       </div>
                       <div class="unit-meta">
-                        <span class="unit-floor">Floor {{ unit.floorNumber }}</span>
+                        <span class="unit-floor">Floor {{ unit.floorNumber }} &middot; {{ unit.rooms.length }} room(s)</span>
                         <button class="rrr-remove-btn" (click)="removeUnit(ui); $event.stopPropagation()" title="Delete unit">&times;</button>
                       </div>
                     </button>
 
-                    <!-- Expanded Unit Details -->
                     @if (expandedUnitId() === unit.unitId) {
                       <div class="unit-detail-panel">
+
+                        <!-- ═══ Room Assignment Section ═══ -->
+                        <div class="rrr-subsection">
+                          <div class="rrr-subsection-header">
+                            <h4 class="rrr-subsection-title">Assigned Rooms</h4>
+                            <span class="unit-count">{{ unit.rooms.length }}</span>
+                          </div>
+
+                          <!-- Current room chips -->
+                          @if (unit.rooms.length) {
+                            <div class="room-chips">
+                              @for (roomId of unit.rooms; track roomId) {
+                                <span class="room-chip">
+                                  <span class="room-chip-label">{{ roomId }}</span>
+                                  @if (selectingRoomsForUnit() === null) {
+                                    <button class="room-chip-remove" (click)="removeRoomFromUnit(ui, roomId)" title="Remove room">&times;</button>
+                                  }
+                                </span>
+                              }
+                            </div>
+                          } @else {
+                            <p class="empty-message">No rooms assigned — click "Select Rooms" to pick from the 3D view</p>
+                          }
+
+                          <!-- Room selection controls -->
+                          @if (selectingRoomsForUnit() === ui) {
+                            <div class="room-selection-active">
+                              <p class="room-selection-hint">Click rooms in the 3D viewer to select/deselect them.</p>
+                              @if (pendingRoomSelection().length) {
+                                <div class="room-chips">
+                                  @for (roomId of pendingRoomSelection(); track roomId) {
+                                    <span class="room-chip room-chip-pending">{{ roomId }}</span>
+                                  }
+                                </div>
+                              }
+                              <div class="room-selection-actions">
+                                <button class="room-action-btn confirm" (click)="confirmRoomSelection()">Confirm Selection</button>
+                                <button class="room-action-btn cancel" (click)="cancelRoomSelectionMode()">Cancel</button>
+                              </div>
+                            </div>
+                          } @else {
+                            <button class="rrr-add-entry-btn" (click)="startRoomSelectionForUnit(ui)"
+                              [disabled]="selectingRoomsForUnit() !== null">
+                              Select Rooms from 3D View
+                            </button>
+                          }
+                        </div>
 
                         <!-- Unit Info Fields -->
                         <div class="rrr-subsection">
@@ -554,115 +521,26 @@
                             <h4 class="rrr-subsection-title">Unit Information</h4>
                           </div>
                           <table class="info-table editable-table">
-                            <tr>
-                              <td class="label">Unit ID</td>
-                              <td class="value">
-                                <input type="text" class="field-input" [ngModel]="unit.unitId"
-                                  (ngModelChange)="onUnitFieldChange(ui, 'unitId', $event)" />
-                              </td>
-                            </tr>
-                            <tr>
-                              <td class="label">Unit Type</td>
-                              <td class="value">
-                                <select class="field-select" [ngModel]="unit.unitType"
-                                  (ngModelChange)="onUnitFieldChange(ui, 'unitType', $event)">
-                                  @for (opt of unitTypeOptions; track opt) {
-                                    <option [value]="opt">{{ unitTypeDisplayMap[opt] }}</option>
-                                  }
-                                </select>
-                              </td>
-                            </tr>
-                            <tr>
-                              <td class="label">Primary Use</td>
-                              <td class="value">
-                                <select class="field-select" [ngModel]="unit.primaryUse"
-                                  (ngModelChange)="onUnitFieldChange(ui, 'primaryUse', $event)">
-                                  @for (opt of primaryUseOptions; track opt) {
-                                    <option [value]="opt">{{ primaryUseDisplayMap[opt] }}</option>
-                                  }
-                                </select>
-                              </td>
-                            </tr>
-                            <tr>
-                              <td class="label">Floor Number</td>
-                              <td class="value">
-                                <input type="number" class="field-input" [ngModel]="unit.floorNumber"
-                                  (ngModelChange)="onUnitFieldChange(ui, 'floorNumber', $event)" />
-                              </td>
-                            </tr>
-                            <tr>
-                              <td class="label">Access Type</td>
-                              <td class="value">
-                                <select class="field-select" [ngModel]="unit.accessType"
-                                  (ngModelChange)="onUnitFieldChange(ui, 'accessType', $event)">
-                                  @for (opt of accessTypeOptions; track opt) {
-                                    <option [value]="opt">{{ accessTypeDisplayMap[opt] }}</option>
-                                  }
-                                </select>
-                              </td>
-                            </tr>
-                            <tr>
-                              <td class="label">Cadastral Ref</td>
-                              <td class="value">
-                                <input type="text" class="field-input" [ngModel]="unit.cadastralRef"
-                                  (ngModelChange)="onUnitFieldChange(ui, 'cadastralRef', $event)" placeholder="e.g., Unit-Parcel 123" />
-                              </td>
-                            </tr>
-                            <tr>
-                              <td class="label">Floor Area</td>
-                              <td class="value">
-                                <input type="number" class="field-input" [ngModel]="unit.floorArea"
-                                  (ngModelChange)="onUnitFieldChange(ui, 'floorArea', $event)" min="0" /> m²
-                              </td>
-                            </tr>
-                            <tr>
-                              <td class="label">Registration Date</td>
-                              <td class="value">
-                                <input type="date" class="field-input" [ngModel]="unit.registrationDate"
-                                  (ngModelChange)="onUnitFieldChange(ui, 'registrationDate', $event)" />
-                              </td>
-                            </tr>
-                            <tr>
-                              <td class="label">Boundary</td>
-                              <td class="value read-only">{{ unit.boundary }}</td>
-                            </tr>
+                            <tr><td class="label">Unit ID</td><td class="value"><input type="text" class="field-input" [ngModel]="unit.unitId" (ngModelChange)="onUnitFieldChange(ui, 'unitId', $event)" /></td></tr>
+                            <tr><td class="label">Unit Type</td><td class="value"><select class="field-select" [ngModel]="unit.unitType" (ngModelChange)="onUnitFieldChange(ui, 'unitType', $event)">@for (opt of unitTypeOptions; track opt) {<option [value]="opt">{{ unitTypeDisplayMap[opt] }}</option>}</select></td></tr>
+                            <tr><td class="label">Primary Use</td><td class="value"><select class="field-select" [ngModel]="unit.primaryUse" (ngModelChange)="onUnitFieldChange(ui, 'primaryUse', $event)">@for (opt of primaryUseOptions; track opt) {<option [value]="opt">{{ primaryUseDisplayMap[opt] }}</option>}</select></td></tr>
+                            <tr><td class="label">Floor Number</td><td class="value"><input type="number" class="field-input" [ngModel]="unit.floorNumber" (ngModelChange)="onUnitFieldChange(ui, 'floorNumber', $event)" /></td></tr>
+                            <tr><td class="label">Access Type</td><td class="value"><select class="field-select" [ngModel]="unit.accessType" (ngModelChange)="onUnitFieldChange(ui, 'accessType', $event)">@for (opt of accessTypeOptions; track opt) {<option [value]="opt">{{ accessTypeDisplayMap[opt] }}</option>}</select></td></tr>
+                            <tr><td class="label">Cadastral Ref</td><td class="value"><input type="text" class="field-input" [ngModel]="unit.cadastralRef" (ngModelChange)="onUnitFieldChange(ui, 'cadastralRef', $event)" placeholder="e.g., Unit-Parcel 123" /></td></tr>
+                            <tr><td class="label">Floor Area</td><td class="value"><input type="number" class="field-input" [ngModel]="unit.floorArea" (ngModelChange)="onUnitFieldChange(ui, 'floorArea', $event)" min="0" /> m&sup2;</td></tr>
+                            <tr><td class="label">Registration Date</td><td class="value"><input type="date" class="field-input" [ngModel]="unit.registrationDate" (ngModelChange)="onUnitFieldChange(ui, 'registrationDate', $event)" /></td></tr>
+                            <tr><td class="label">Boundary</td><td class="value read-only">{{ unit.boundary }}</td></tr>
                           </table>
                         </div>
 
                         <!-- Unit Tax & Valuation -->
                         <div class="rrr-subsection">
-                          <div class="rrr-subsection-header">
-                            <h4 class="rrr-subsection-title">Tax & Valuation</h4>
-                          </div>
+                          <div class="rrr-subsection-header"><h4 class="rrr-subsection-title">Tax & Valuation</h4></div>
                           <table class="info-table editable-table">
-                            <tr>
-                              <td class="label">Tax Unit Area</td>
-                              <td class="value">
-                                <input type="number" class="field-input" [ngModel]="unit.tax.taxUnitArea"
-                                  (ngModelChange)="onUnitTaxFieldChange(ui, 'taxUnitArea', $event)" min="0" /> m²
-                              </td>
-                            </tr>
-                            <tr>
-                              <td class="label">Assessed Value</td>
-                              <td class="value">
-                                <input type="number" class="field-input" [ngModel]="unit.tax.assessedValue"
-                                  (ngModelChange)="onUnitTaxFieldChange(ui, 'assessedValue', $event)" min="0" />
-                              </td>
-                            </tr>
-                            <tr>
-                              <td class="label">Last Valuation Date</td>
-                              <td class="value">
-                                <input type="date" class="field-input" [ngModel]="unit.tax.lastValuationDate"
-                                  (ngModelChange)="onUnitTaxFieldChange(ui, 'lastValuationDate', $event)" />
-                              </td>
-                            </tr>
-                            <tr>
-                              <td class="label">Tax Due</td>
-                              <td class="value">
-                                <input type="number" class="field-input" [ngModel]="unit.tax.taxDue"
-                                  (ngModelChange)="onUnitTaxFieldChange(ui, 'taxDue', $event)" min="0" />
-                              </td>
-                            </tr>
+                            <tr><td class="label">Tax Unit Area</td><td class="value"><input type="number" class="field-input" [ngModel]="unit.tax.taxUnitArea" (ngModelChange)="onUnitTaxFieldChange(ui, 'taxUnitArea', $event)" min="0" /> m&sup2;</td></tr>
+                            <tr><td class="label">Assessed Value</td><td class="value"><input type="number" class="field-input" [ngModel]="unit.tax.assessedValue" (ngModelChange)="onUnitTaxFieldChange(ui, 'assessedValue', $event)" min="0" /></td></tr>
+                            <tr><td class="label">Last Valuation Date</td><td class="value"><input type="date" class="field-input" [ngModel]="unit.tax.lastValuationDate" (ngModelChange)="onUnitTaxFieldChange(ui, 'lastValuationDate', $event)" /></td></tr>
+                            <tr><td class="label">Tax Due</td><td class="value"><input type="number" class="field-input" [ngModel]="unit.tax.taxDue" (ngModelChange)="onUnitTaxFieldChange(ui, 'taxDue', $event)" min="0" /></td></tr>
                           </table>
                         </div>
 
@@ -674,99 +552,33 @@
                           </div>
                           <div class="rrr-table-wrapper">
                             <table class="rrr-table">
-                              <thead>
-                                <tr>
-                                  <th>Holder</th>
-                                  <th>Type</th>
-                                  <th>Share</th>
-                                  <th></th>
-                                </tr>
-                              </thead>
+                              <thead><tr><th>Holder</th><th>Type</th><th>Share</th><th></th></tr></thead>
                               <tbody>
                                 @if (unit.rrr.entries.length) {
                                   @for (entry of unit.rrr.entries; track entry.rrrId; let ei = $index) {
                                     <tr class="rrr-data-row" (click)="toggleUnitRRRExpand(entry.rrrId)">
-                                      <td>
-                                        <input type="text" class="field-input rrr-cell-input" [ngModel]="entry.holder"
-                                          (ngModelChange)="onUnitRRRFieldChange(ui, ei, 'holder', $event)" (click)="$event.stopPropagation()" placeholder="Name" />
-                                      </td>
-                                      <td>
-                                        <select class="field-select rrr-cell-select" [ngModel]="entry.type"
-                                          (ngModelChange)="onUnitRRRFieldChange(ui, ei, 'type', $event)" (click)="$event.stopPropagation()">
-                                          @for (opt of rightTypeOptions; track opt) {
-                                            <option [value]="opt">{{ rightTypeDisplayMap[opt] }}</option>
-                                          }
-                                        </select>
-                                      </td>
-                                      <td>
-                                        <input type="number" class="field-input rrr-cell-input rrr-share-input" [ngModel]="entry.share"
-                                          (ngModelChange)="onUnitRRRFieldChange(ui, ei, 'share', $event)" (click)="$event.stopPropagation()" min="0" max="100" />
-                                      </td>
-                                      <td>
-                                        <button class="rrr-remove-btn" (click)="removeUnitRRREntry(ui, ei); $event.stopPropagation()" title="Delete">&times;</button>
-                                      </td>
+                                      <td><input type="text" class="field-input rrr-cell-input" [ngModel]="entry.holder" (ngModelChange)="onUnitRRRFieldChange(ui, ei, 'holder', $event)" (click)="$event.stopPropagation()" placeholder="Name" /></td>
+                                      <td><select class="field-select rrr-cell-select" [ngModel]="entry.type" (ngModelChange)="onUnitRRRFieldChange(ui, ei, 'type', $event)" (click)="$event.stopPropagation()">@for (opt of rightTypeOptions; track opt) {<option [value]="opt">{{ rightTypeDisplayMap[opt] }}</option>}</select></td>
+                                      <td><input type="number" class="field-input rrr-cell-input rrr-share-input" [ngModel]="entry.share" (ngModelChange)="onUnitRRRFieldChange(ui, ei, 'share', $event)" (click)="$event.stopPropagation()" min="0" max="100" /></td>
+                                      <td><button class="rrr-remove-btn" (click)="removeUnitRRREntry(ui, ei); $event.stopPropagation()" title="Delete">&times;</button></td>
                                     </tr>
-                                    <!-- Expanded RRR detail with restrictions/responsibilities -->
                                     @if (expandedUnitRRRId() === entry.rrrId) {
                                       <tr class="rrr-detail-row">
                                         <td colspan="4">
                                           <div class="rrr-detail-inline">
-                                            <div class="rrr-inline-field">
-                                              <span class="label">Valid:</span>
-                                              <input type="date" class="field-input" [ngModel]="entry.validFrom"
-                                                (ngModelChange)="onUnitRRRFieldChange(ui, ei, 'validFrom', $event)" />
+                                            <div class="rrr-inline-field"><span class="label">Valid:</span>
+                                              <input type="date" class="field-input" [ngModel]="entry.validFrom" (ngModelChange)="onUnitRRRFieldChange(ui, ei, 'validFrom', $event)" />
                                               <span>&ndash;</span>
-                                              <input type="date" class="field-input" [ngModel]="entry.validTo"
-                                                (ngModelChange)="onUnitRRRFieldChange(ui, ei, 'validTo', $event)" />
+                                              <input type="date" class="field-input" [ngModel]="entry.validTo" (ngModelChange)="onUnitRRRFieldChange(ui, ei, 'validTo', $event)" />
                                             </div>
                                           </div>
-                                          <!-- Restrictions -->
                                           <div class="rrr-sub-section">
-                                            <div class="rrr-sub-header">
-                                              <span class="rrr-sub-title">Restrictions</span>
-                                              <button class="rrr-add-btn" (click)="addUnitRestriction(ui, ei)">+ Add</button>
-                                            </div>
-                                            @if (entry.restrictions.length) {
-                                              @for (r of entry.restrictions; track r.type; let ri = $index) {
-                                                <div class="rrr-sub-row">
-                                                  <select class="field-select rrr-mini-select" [ngModel]="r.type"
-                                                    (ngModelChange)="onUnitRestrictionChange(ui, ei, ri, 'type', $event)">
-                                                    @for (opt of restrictionTypeOptions; track opt) {
-                                                      <option [value]="opt">{{ restrictionTypeDisplayMap[opt] }}</option>
-                                                    }
-                                                  </select>
-                                                  <input type="text" class="field-input rrr-mini-input" [ngModel]="r.description"
-                                                    (ngModelChange)="onUnitRestrictionChange(ui, ei, ri, 'description', $event)" placeholder="Description" />
-                                                  <button class="rrr-remove-btn" (click)="removeUnitRestriction(ui, ei, ri)">&times;</button>
-                                                </div>
-                                              }
-                                            } @else {
-                                              <p class="empty-message">No restrictions</p>
-                                            }
+                                            <div class="rrr-sub-header"><span class="rrr-sub-title">Restrictions</span><button class="rrr-add-btn" (click)="addUnitRestriction(ui, ei)">+ Add</button></div>
+                                            @if (entry.restrictions.length) { @for (r of entry.restrictions; track r.type; let ri = $index) { <div class="rrr-sub-row"><select class="field-select rrr-mini-select" [ngModel]="r.type" (ngModelChange)="onUnitRestrictionChange(ui, ei, ri, 'type', $event)">@for (opt of restrictionTypeOptions; track opt) {<option [value]="opt">{{ restrictionTypeDisplayMap[opt] }}</option>}</select><input type="text" class="field-input rrr-mini-input" [ngModel]="r.description" (ngModelChange)="onUnitRestrictionChange(ui, ei, ri, 'description', $event)" placeholder="Description" /><button class="rrr-remove-btn" (click)="removeUnitRestriction(ui, ei, ri)">&times;</button></div> } } @else { <p class="empty-message">No restrictions</p> }
                                           </div>
-                                          <!-- Responsibilities -->
                                           <div class="rrr-sub-section">
-                                            <div class="rrr-sub-header">
-                                              <span class="rrr-sub-title">Responsibilities</span>
-                                              <button class="rrr-add-btn" (click)="addUnitResponsibility(ui, ei)">+ Add</button>
-                                            </div>
-                                            @if (entry.responsibilities.length) {
-                                              @for (resp of entry.responsibilities; track resp.type; let rsi = $index) {
-                                                <div class="rrr-sub-row">
-                                                  <select class="field-select rrr-mini-select" [ngModel]="resp.type"
-                                                    (ngModelChange)="onUnitResponsibilityChange(ui, ei, rsi, 'type', $event)">
-                                                    @for (opt of responsibilityTypeOptions; track opt) {
-                                                      <option [value]="opt">{{ responsibilityTypeDisplayMap[opt] }}</option>
-                                                    }
-                                                  </select>
-                                                  <input type="text" class="field-input rrr-mini-input" [ngModel]="resp.description"
-                                                    (ngModelChange)="onUnitResponsibilityChange(ui, ei, rsi, 'description', $event)" placeholder="Description" />
-                                                  <button class="rrr-remove-btn" (click)="removeUnitResponsibility(ui, ei, rsi)">&times;</button>
-                                                </div>
-                                              }
-                                            } @else {
-                                              <p class="empty-message">No responsibilities</p>
-                                            }
+                                            <div class="rrr-sub-header"><span class="rrr-sub-title">Responsibilities</span><button class="rrr-add-btn" (click)="addUnitResponsibility(ui, ei)">+ Add</button></div>
+                                            @if (entry.responsibilities.length) { @for (resp of entry.responsibilities; track resp.type; let rsi = $index) { <div class="rrr-sub-row"><select class="field-select rrr-mini-select" [ngModel]="resp.type" (ngModelChange)="onUnitResponsibilityChange(ui, ei, rsi, 'type', $event)">@for (opt of responsibilityTypeOptions; track opt) {<option [value]="opt">{{ responsibilityTypeDisplayMap[opt] }}</option>}</select><input type="text" class="field-input rrr-mini-input" [ngModel]="resp.description" (ngModelChange)="onUnitResponsibilityChange(ui, ei, rsi, 'description', $event)" placeholder="Description" /><button class="rrr-remove-btn" (click)="removeUnitResponsibility(ui, ei, rsi)">&times;</button></div> } } @else { <p class="empty-message">No responsibilities</p> }
                                           </div>
                                         </td>
                                       </tr>
@@ -780,7 +592,6 @@
                           </div>
                           <button class="rrr-add-entry-btn" (click)="addUnitRRREntry(ui)">+ Add Right</button>
                         </div>
-
                       </div>
                     }
                   </div>
@@ -789,7 +600,6 @@
                 <p class="empty-message">No units defined</p>
               }
             </div>
-
             <button class="rrr-add-entry-btn" (click)="addUnit()">+ Add Unit</button>
           </div>
         }
@@ -797,86 +607,19 @@
 
       <!-- Physical Attributes Section -->
       <div class="collapsible-section">
-        <button
-          class="section-header"
-          [class.expanded]="isSectionExpanded('physical')"
-          (click)="toggleSection('physical')">
-          <span class="section-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
-            </svg>
-          </span>
+        <button class="section-header" [class.expanded]="isSectionExpanded('physical')" (click)="toggleSection('physical')">
+          <span class="section-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>
           <span class="section-title">Physical Attributes</span>
-          <span class="chevron">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="6 9 12 15 18 9"/>
-            </svg>
-          </span>
+          <span class="chevron"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span>
         </button>
         @if (isSectionExpanded('physical')) {
           <div class="section-content">
             <table class="info-table editable-table">
-              <!-- constructionYear: Editable -->
-              <tr>
-                <td class="label">Construction Year</td>
-                <td class="value">
-                  <input
-                    type="number"
-                    class="field-input"
-                    [ngModel]="buildingInfo()?.physicalAttributes?.constructionYear ?? 0"
-                    (ngModelChange)="onPhysicalFieldChange('constructionYear', $event)"
-                    min="1800"
-                    max="2099"
-                  />
-                </td>
-              </tr>
-              <!-- structureType: Enum, Editable -->
-              <tr>
-                <td class="label">Structure Type</td>
-                <td class="value">
-                  <select
-                    class="field-select"
-                    [ngModel]="buildingInfo()?.physicalAttributes?.structureType ?? ''"
-                    (ngModelChange)="onPhysicalFieldChange('structureType', $event)">
-                    @for (opt of structureTypeOptions; track opt) {
-                      <option [value]="opt">{{ structureTypeDisplayMap[opt] }}</option>
-                    }
-                  </select>
-                </td>
-              </tr>
-              <!-- condition: Enum, Editable -->
-              <tr>
-                <td class="label">Condition</td>
-                <td class="value">
-                  <select
-                    class="field-select"
-                    [ngModel]="buildingInfo()?.physicalAttributes?.condition ?? ''"
-                    (ngModelChange)="onPhysicalFieldChange('condition', $event)">
-                    @for (opt of conditionOptions; track opt) {
-                      <option [value]="opt">{{ conditionDisplayMap[opt] }}</option>
-                    }
-                  </select>
-                </td>
-              </tr>
-              <!-- roofType: Enum, Editable -->
-              <tr>
-                <td class="label">Roof Type</td>
-                <td class="value">
-                  <select
-                    class="field-select"
-                    [ngModel]="buildingInfo()?.physicalAttributes?.roofType ?? ''"
-                    (ngModelChange)="onPhysicalFieldChange('roofType', $event)">
-                    @for (opt of roofTypeOptions; track opt) {
-                      <option [value]="opt">{{ roofTypeDisplayMap[opt] }}</option>
-                    }
-                  </select>
-                </td>
-              </tr>
-              <!-- grossArea: System-Calculated, Read-Only -->
-              <tr>
-                <td class="label">Gross Area</td>
-                <td class="value read-only">{{ formatArea(buildingInfo()?.physicalAttributes?.grossArea) }}</td>
-              </tr>
+              <tr><td class="label">Construction Year</td><td class="value"><input type="number" class="field-input" [ngModel]="info.physicalAttributes.constructionYear" (ngModelChange)="onPhysicalFieldChange('constructionYear', $event)" min="1800" max="2099" /></td></tr>
+              <tr><td class="label">Structure Type</td><td class="value"><select class="field-select" [ngModel]="info.physicalAttributes.structureType" (ngModelChange)="onPhysicalFieldChange('structureType', $event)">@for (opt of structureTypeOptions; track opt) {<option [value]="opt">{{ structureTypeDisplayMap[opt] }}</option>}</select></td></tr>
+              <tr><td class="label">Condition</td><td class="value"><select class="field-select" [ngModel]="info.physicalAttributes.condition" (ngModelChange)="onPhysicalFieldChange('condition', $event)">@for (opt of conditionOptions; track opt) {<option [value]="opt">{{ conditionDisplayMap[opt] }}</option>}</select></td></tr>
+              <tr><td class="label">Roof Type</td><td class="value"><select class="field-select" [ngModel]="info.physicalAttributes.roofType" (ngModelChange)="onPhysicalFieldChange('roofType', $event)">@for (opt of roofTypeOptions; track opt) {<option [value]="opt">{{ roofTypeDisplayMap[opt] }}</option>}</select></td></tr>
+              <tr><td class="label">Gross Area</td><td class="value read-only">{{ formatArea(info.physicalAttributes.grossArea) }}</td></tr>
             </table>
           </div>
         }
@@ -884,93 +627,22 @@
 
       <!-- Relationships & Topology Section -->
       <div class="collapsible-section">
-        <button
-          class="section-header"
-          [class.expanded]="isSectionExpanded('relationships')"
-          (click)="toggleSection('relationships')">
-          <span class="section-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="18" cy="5" r="3"/>
-              <circle cx="6" cy="12" r="3"/>
-              <circle cx="18" cy="19" r="3"/>
-              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
-              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-            </svg>
-          </span>
+        <button class="section-header" [class.expanded]="isSectionExpanded('relationships')" (click)="toggleSection('relationships')">
+          <span class="section-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></span>
           <span class="section-title">Relationships & Topology</span>
-          <span class="chevron">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="6 9 12 15 18 9"/>
-            </svg>
-          </span>
+          <span class="chevron"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span>
         </button>
         @if (isSectionExpanded('relationships')) {
           <div class="section-content">
             <table class="info-table editable-table">
-              <!-- parcelRelation: Editable -->
-              <tr>
-                <td class="label">Parcel Relation</td>
-                <td class="value">
-                  <input
-                    type="text"
-                    class="field-input"
-                    [ngModel]="buildingInfo()?.relationshipsTopology?.parcelRelation ?? ''"
-                    (ngModelChange)="onRelationshipsFieldChange('parcelRelation', $event)"
-                    placeholder="UUID(s) of linked parcel(s)"
-                  />
-                </td>
-              </tr>
-              <!-- adjacentBuildings: System-Calculated, Read-Only -->
-              <tr>
-                <td class="label">Adjacent Buildings</td>
-                <td class="value read-only">{{ buildingInfo()?.relationshipsTopology?.adjacentBuildings || 'None detected' }}</td>
-              </tr>
-              <!-- sharedWall: Boolean, Editable -->
-              <tr>
-                <td class="label">Shared Wall</td>
-                <td class="value">
-                  <label class="toggle-label">
-                    <input
-                      type="checkbox"
-                      class="field-checkbox"
-                      [ngModel]="buildingInfo()?.relationshipsTopology?.sharedWall ?? false"
-                      (ngModelChange)="onRelationshipsFieldChange('sharedWall', $event)"
-                    />
-                    <span class="toggle-text">{{ buildingInfo()?.relationshipsTopology?.sharedWall ? 'Yes (Party Wall)' : 'No' }}</span>
-                  </label>
-                </td>
-              </tr>
-              <!-- topologyStatus: Enum, System-Calculated, Read-Only -->
-              <tr>
-                <td class="label">Topology Status</td>
-                <td class="value">
-                  <span class="badge"
-                    [class.badge-success]="buildingInfo()?.relationshipsTopology?.topologyStatus === 'VALID'"
-                    [class.badge-warning]="buildingInfo()?.relationshipsTopology?.topologyStatus === 'WARN_OVER' || buildingInfo()?.relationshipsTopology?.topologyStatus === 'WARN_GAP'">
-                    {{ topologyStatusDisplayMap[buildingInfo()!.relationshipsTopology.topologyStatus] || 'N/A' }}
-                  </span>
-                </td>
-              </tr>
-              <!-- overlapVolume: Read-Only, shown only if warning -->
-              @if (buildingInfo()?.relationshipsTopology?.topologyStatus !== 'VALID' && buildingInfo()?.relationshipsTopology?.overlapVolume) {
-                <tr>
-                  <td class="label">Overlap Volume</td>
-                  <td class="value read-only">{{ formatVolume(buildingInfo()?.relationshipsTopology?.overlapVolume) }}</td>
-                </tr>
+              <tr><td class="label">Parcel Relation</td><td class="value"><input type="text" class="field-input" [ngModel]="info.relationshipsTopology.parcelRelation" (ngModelChange)="onRelationshipsFieldChange('parcelRelation', $event)" placeholder="UUID(s) of linked parcel(s)" /></td></tr>
+              <tr><td class="label">Adjacent Buildings</td><td class="value read-only">{{ info.relationshipsTopology.adjacentBuildings || 'None detected' }}</td></tr>
+              <tr><td class="label">Shared Wall</td><td class="value"><label class="toggle-label"><input type="checkbox" class="field-checkbox" [ngModel]="info.relationshipsTopology.sharedWall" (ngModelChange)="onRelationshipsFieldChange('sharedWall', $event)" /><span class="toggle-text">{{ info.relationshipsTopology.sharedWall ? 'Yes (Party Wall)' : 'No' }}</span></label></td></tr>
+              <tr><td class="label">Topology Status</td><td class="value"><span class="badge" [class.badge-success]="info.relationshipsTopology.topologyStatus === 'VALID'" [class.badge-warning]="info.relationshipsTopology.topologyStatus === 'WARN_OVER' || info.relationshipsTopology.topologyStatus === 'WARN_GAP'">{{ topologyStatusDisplayMap[info.relationshipsTopology.topologyStatus] || 'N/A' }}</span></td></tr>
+              @if (info.relationshipsTopology.topologyStatus !== 'VALID' && info.relationshipsTopology.overlapVolume) {
+                <tr><td class="label">Overlap Volume</td><td class="value read-only">{{ formatVolume(info.relationshipsTopology.overlapVolume) }}</td></tr>
               }
-              <!-- partOfComplex: Editable -->
-              <tr>
-                <td class="label">Part of Complex</td>
-                <td class="value">
-                  <input
-                    type="text"
-                    class="field-input"
-                    [ngModel]="buildingInfo()?.relationshipsTopology?.partOfComplex ?? ''"
-                    (ngModelChange)="onRelationshipsFieldChange('partOfComplex', $event)"
-                    placeholder="Parent Complex UUID"
-                  />
-                </td>
-              </tr>
+              <tr><td class="label">Part of Complex</td><td class="value"><input type="text" class="field-input" [ngModel]="info.relationshipsTopology.partOfComplex" (ngModelChange)="onRelationshipsFieldChange('partOfComplex', $event)" placeholder="Parent Complex UUID" /></td></tr>
             </table>
           </div>
         }
@@ -978,134 +650,65 @@
 
       <!-- Metadata & Quality Section -->
       <div class="collapsible-section">
-        <button
-          class="section-header"
-          [class.expanded]="isSectionExpanded('metadata')"
-          (click)="toggleSection('metadata')">
-          <span class="section-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/>
-              <line x1="16" y1="17" x2="8" y2="17"/>
-              <polyline points="10 9 9 9 8 9"/>
-            </svg>
-          </span>
+        <button class="section-header" [class.expanded]="isSectionExpanded('metadata')" (click)="toggleSection('metadata')">
+          <span class="section-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span>
           <span class="section-title">Metadata & Quality</span>
-          <span class="chevron">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="6 9 12 15 18 9"/>
-            </svg>
-          </span>
+          <span class="chevron"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span>
         </button>
         @if (isSectionExpanded('metadata')) {
           <div class="section-content">
             <table class="info-table editable-table">
-              <!-- dataQualityID: Read-Only -->
-              <tr>
-                <td class="label">Data Quality ID</td>
-                <td class="value read-only">{{ buildingInfo()?.metadataQuality?.dataQualityID || 'N/A' }}</td>
-              </tr>
-              <!-- accuracyLevel: Enum, Editable -->
-              <tr>
-                <td class="label">Accuracy Level</td>
-                <td class="value">
-                  <select
-                    class="field-select"
-                    [ngModel]="buildingInfo()?.metadataQuality?.accuracyLevel ?? ''"
-                    (ngModelChange)="onMetadataFieldChange('accuracyLevel', $event)">
-                    @for (opt of accuracyLevelOptions; track opt) {
-                      <option [value]="opt">{{ accuracyLevelDisplayMap[opt] }}</option>
-                    }
-                  </select>
-                </td>
-              </tr>
-              <!-- surveyMethod: Enum, Editable -->
-              <tr>
-                <td class="label">Survey Method</td>
-                <td class="value">
-                  <select
-                    class="field-select"
-                    [ngModel]="buildingInfo()?.metadataQuality?.surveyMethod ?? ''"
-                    (ngModelChange)="onMetadataFieldChange('surveyMethod', $event)">
-                    @for (opt of surveyMethodOptions; track opt) {
-                      <option [value]="opt">{{ surveyMethodDisplayMap[opt] }}</option>
-                    }
-                  </select>
-                </td>
-              </tr>
-              <!-- lastUpdated: System-Set, Read-Only -->
-              <tr>
-                <td class="label">Last Updated</td>
-                <td class="value read-only">{{ buildingInfo()?.metadataQuality?.lastUpdated || 'N/A' }}</td>
-              </tr>
-              <!-- responsibleParty: System-Set, Read-Only -->
-              <tr>
-                <td class="label">Responsible Party</td>
-                <td class="value read-only">{{ buildingInfo()?.metadataQuality?.responsibleParty || 'N/A' }}</td>
-              </tr>
-              <!-- sourceFile: Read-Only -->
-              <tr>
-                <td class="label">Source File</td>
-                <td class="value read-only">{{ buildingInfo()?.metadataQuality?.sourceFile || 'N/A' }}</td>
-              </tr>
+              <tr><td class="label">Data Quality ID</td><td class="value read-only">{{ info.metadataQuality.dataQualityID || 'N/A' }}</td></tr>
+              <tr><td class="label">Accuracy Level</td><td class="value"><select class="field-select" [ngModel]="info.metadataQuality.accuracyLevel" (ngModelChange)="onMetadataFieldChange('accuracyLevel', $event)">@for (opt of accuracyLevelOptions; track opt) {<option [value]="opt">{{ accuracyLevelDisplayMap[opt] }}</option>}</select></td></tr>
+              <tr><td class="label">Survey Method</td><td class="value"><select class="field-select" [ngModel]="info.metadataQuality.surveyMethod" (ngModelChange)="onMetadataFieldChange('surveyMethod', $event)">@for (opt of surveyMethodOptions; track opt) {<option [value]="opt">{{ surveyMethodDisplayMap[opt] }}</option>}</select></td></tr>
+              <tr><td class="label">Last Updated</td><td class="value read-only">{{ info.metadataQuality.lastUpdated || 'N/A' }}</td></tr>
+              <tr><td class="label">Responsible Party</td><td class="value read-only">{{ info.metadataQuality.responsibleParty || 'N/A' }}</td></tr>
+              <tr><td class="label">Source File</td><td class="value read-only">{{ info.metadataQuality.sourceFile || 'N/A' }}</td></tr>
             </table>
           </div>
         }
       </div>
 
       <!-- Tax & Valuation Section (only if data exists) -->
-      @if (buildingInfo()?.taxValuation) {
+      @if (info.taxValuation) {
         <div class="collapsible-section">
-          <button
-            class="section-header"
-            [class.expanded]="false"
-            (click)="toggleSection('physical')">
-            <span class="section-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="12" y1="1" x2="12" y2="23"/>
-                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-              </svg>
-            </span>
+          <button class="section-header" [class.expanded]="false" (click)="toggleSection('physical')">
+            <span class="section-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
             <span class="section-title">Tax & Valuation</span>
-            <span class="chevron">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="6 9 12 15 18 9"/>
-              </svg>
-            </span>
+            <span class="chevron"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span>
           </button>
           <div class="section-content">
             <table class="info-table">
-              <tr>
-                <td class="label">Assessed Value</td>
-                <td class="value">{{ formatCurrency(buildingInfo()?.taxValuation?.assessedValue) }}</td>
-              </tr>
-              <tr>
-                <td class="label">Market Value</td>
-                <td class="value">{{ formatCurrency(buildingInfo()?.taxValuation?.marketValue) }}</td>
-              </tr>
-              <tr>
-                <td class="label">Annual Tax</td>
-                <td class="value">{{ formatCurrency(buildingInfo()?.taxValuation?.annualTax) }}</td>
-              </tr>
-              <tr>
-                <td class="label">Last Assessment</td>
-                <td class="value">{{ buildingInfo()?.taxValuation?.lastAssessmentDate }}</td>
-              </tr>
-              <tr>
-                <td class="label">Tax Status</td>
-                <td class="value">
-                  <span class="badge" [class.badge-success]="buildingInfo()?.taxValuation?.taxStatus === 'paid'"
-                        [class.badge-warning]="buildingInfo()?.taxValuation?.taxStatus === 'pending'"
-                        [class.badge-error]="buildingInfo()?.taxValuation?.taxStatus === 'overdue'">
-                    {{ buildingInfo()?.taxValuation?.taxStatus }}
-                  </span>
-                </td>
-              </tr>
+              <tr><td class="label">Assessed Value</td><td class="value">{{ formatCurrency(info.taxValuation?.assessedValue) }}</td></tr>
+              <tr><td class="label">Market Value</td><td class="value">{{ formatCurrency(info.taxValuation?.marketValue) }}</td></tr>
+              <tr><td class="label">Annual Tax</td><td class="value">{{ formatCurrency(info.taxValuation?.annualTax) }}</td></tr>
+              <tr><td class="label">Last Assessment</td><td class="value">{{ info.taxValuation?.lastAssessmentDate }}</td></tr>
+              <tr><td class="label">Tax Status</td><td class="value">
+                <span class="badge" [class.badge-success]="info.taxValuation?.taxStatus === 'paid'" [class.badge-warning]="info.taxValuation?.taxStatus === 'pending'" [class.badge-error]="info.taxValuation?.taxStatus === 'overdue'">{{ info.taxValuation?.taxStatus }}</span>
+              </td></tr>
             </table>
           </div>
         </div>
       }
+
+      <!-- ═══ Save / Delete Footer ═══ -->
+      <div class="panel-footer">
+        <button class="footer-btn save-btn" (click)="onSaveBuilding()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+            <polyline points="17 21 17 13 7 13 7 21"/>
+            <polyline points="7 3 7 8 15 8"/>
+          </svg>
+          Save Building Details
+        </button>
+        <button class="footer-btn delete-btn" (click)="onDeleteBuilding()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          </svg>
+          Delete
+        </button>
+      </div>
     </div>
   }
 </div>
