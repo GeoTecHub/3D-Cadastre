@@ -367,15 +367,44 @@
 /* ─── RRR Section ──────────────────────────────────────────── */
 
 .rrr-section {
-  padding: 0 !important;
+  padding: 0.5rem 0.75rem !important;
 }
 
 .rrr-section .tab-bar {
-  padding: 0.5rem 0.75rem 0;
+  padding: 0.5rem 0 0;
 }
 
 .rrr-section .tab-content {
-  padding: 0.5rem 0.75rem 0.75rem;
+  padding: 0.5rem 0 0.75rem;
+}
+
+/* RRR Sub-sections */
+.rrr-subsection {
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.rrr-subsection:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.rrr-subsection-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.rrr-subsection-title {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #a5b4fc;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 /* RRR Ownership Table */
