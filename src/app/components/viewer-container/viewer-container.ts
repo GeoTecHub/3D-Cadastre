@@ -317,6 +317,8 @@ export class ViewerContainer {
       const delta = startX - e.clientX;
       const newWidth = Math.max(240, Math.min(600, startWidth + delta));
       this.ngZone.run(() => this.sidebarWidth.set(newWidth));
+      // Notify Three.js viewer that the container size changed
+      window.dispatchEvent(new Event('resize'));
     };
 
     const onUp = () => {
