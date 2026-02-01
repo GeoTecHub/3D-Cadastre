@@ -112,7 +112,11 @@ export const ACCESS_TYPE_DISPLAY: Record<AccessType, string> = {
   [AccessType.ELV]: 'Elevator Lobby'
 };
 
+/**
+ * Spatial/Geometric Enums (Section 2.4)
+ */
 export enum LodLevel {
+  LOD0 = 'LOD0',
   LOD1 = 'LOD1',
   LOD2 = 'LOD2',
   LOD3 = 'LOD3',
@@ -120,67 +124,190 @@ export enum LodLevel {
 }
 
 export const LOD_LEVEL_DISPLAY: Record<LodLevel, string> = {
+  [LodLevel.LOD0]: 'LoD0 (Footprint)',
   [LodLevel.LOD1]: 'LoD1 (Block)',
   [LodLevel.LOD2]: 'LoD2 (Roof)',
-  [LodLevel.LOD3]: 'LoD3 (Detailed)',
+  [LodLevel.LOD3]: 'LoD3 (Architectural)',
   [LodLevel.LOD4]: 'LoD4 (Interior)'
+};
+
+export enum ElevationRef {
+  MSL = 'MSL',
+  ELLIP = 'ELLIP',
+  LAT = 'LAT',
+  GROUND = 'GROUND'
+}
+
+export const ELEVATION_REF_DISPLAY: Record<ElevationRef, string> = {
+  [ElevationRef.MSL]: 'Mean Sea Level',
+  [ElevationRef.ELLIP]: 'Ellipsoidal',
+  [ElevationRef.LAT]: 'Lowest Astro. Tide',
+  [ElevationRef.GROUND]: 'Relative to Ground'
+};
+
+export enum CRS {
+  EPSG_3857 = 'EPSG_3857',
+  EPSG_4326 = 'EPSG_4326',
+  EPSG_XXXX = 'EPSG_XXXX'
+}
+
+export const CRS_DISPLAY: Record<CRS, string> = {
+  [CRS.EPSG_3857]: 'WGS 84 / Pseudo-Mercator',
+  [CRS.EPSG_4326]: 'WGS 84 (Lat/Lon)',
+  [CRS.EPSG_XXXX]: '[Local Grid]'
+};
+
+/**
+ * Physical & Technical Enums (Section 2.5.2)
+ */
+export enum StructureType {
+  CONC_REINF = 'CONC_REINF',
+  STEEL_FRM = 'STEEL_FRM',
+  MASONRY = 'MASONRY',
+  TIMBER = 'TIMBER',
+  COMPOSITE = 'COMPOSITE'
+}
+
+export const STRUCTURE_TYPE_DISPLAY: Record<StructureType, string> = {
+  [StructureType.CONC_REINF]: 'Reinforced Concrete',
+  [StructureType.STEEL_FRM]: 'Steel Frame',
+  [StructureType.MASONRY]: 'Masonry / Brick',
+  [StructureType.TIMBER]: 'Timber Frame',
+  [StructureType.COMPOSITE]: 'Composite'
+};
+
+export enum Condition {
+  EXCELLENT = 'EXCELLENT',
+  GOOD = 'GOOD',
+  FAIR = 'FAIR',
+  POOR = 'POOR',
+  DILAPID = 'DILAPID'
+}
+
+export const CONDITION_DISPLAY: Record<Condition, string> = {
+  [Condition.EXCELLENT]: 'Excellent',
+  [Condition.GOOD]: 'Good',
+  [Condition.FAIR]: 'Fair',
+  [Condition.POOR]: 'Poor',
+  [Condition.DILAPID]: 'Dilapidated'
+};
+
+export enum RoofType {
+  FLAT = 'FLAT',
+  GABLE = 'GABLE',
+  HIP = 'HIP',
+  DOME = 'DOME',
+  MANSARD = 'MANSARD'
+}
+
+export const ROOF_TYPE_DISPLAY: Record<RoofType, string> = {
+  [RoofType.FLAT]: 'Flat Roof',
+  [RoofType.GABLE]: 'Gable',
+  [RoofType.HIP]: 'Hip',
+  [RoofType.DOME]: 'Dome',
+  [RoofType.MANSARD]: 'Mansard'
+};
+
+/**
+ * Relationships & Topology Enums
+ */
+export enum TopologyStatus {
+  VALID = 'VALID',
+  WARN_OVER = 'WARN_OVER',
+  WARN_GAP = 'WARN_GAP'
+}
+
+export const TOPOLOGY_STATUS_DISPLAY: Record<TopologyStatus, string> = {
+  [TopologyStatus.VALID]: 'Valid',
+  [TopologyStatus.WARN_OVER]: 'Overlap Warning',
+  [TopologyStatus.WARN_GAP]: 'Gap Warning'
+};
+
+/**
+ * Metadata & Quality Enums (Section 2.6.2)
+ */
+export enum AccuracyLevel {
+  ACC_TIER1 = 'ACC_TIER1',
+  ACC_TIER2 = 'ACC_TIER2',
+  ACC_TIER3 = 'ACC_TIER3',
+  ACC_UNK = 'ACC_UNK'
+}
+
+export const ACCURACY_LEVEL_DISPLAY: Record<AccuracyLevel, string> = {
+  [AccuracyLevel.ACC_TIER1]: 'Tier 1: Survey Grade (< 5cm)',
+  [AccuracyLevel.ACC_TIER2]: 'Tier 2: Mapping Grade (< 50cm)',
+  [AccuracyLevel.ACC_TIER3]: 'Tier 3: Sketch/Approx (> 1m)',
+  [AccuracyLevel.ACC_UNK]: 'Unknown'
+};
+
+export enum SurveyMethod {
+  LIDAR_ALS = 'LIDAR_ALS',
+  LIDAR_TLS = 'LIDAR_TLS',
+  PHOTO_UAV = 'PHOTO_UAV',
+  SURVEY_TS = 'SURVEY_TS',
+  DIGIT_2D = 'DIGIT_2D',
+  BIM_IFC = 'BIM_IFC',
+  MANUAL = 'MANUAL'
+}
+
+export const SURVEY_METHOD_DISPLAY: Record<SurveyMethod, string> = {
+  [SurveyMethod.LIDAR_ALS]: 'Airborne LiDAR',
+  [SurveyMethod.LIDAR_TLS]: 'Terrestrial LiDAR',
+  [SurveyMethod.PHOTO_UAV]: 'UAV Photogrammetry',
+  [SurveyMethod.SURVEY_TS]: 'Total Station / GNSS',
+  [SurveyMethod.DIGIT_2D]: 'Extruded 2D Plans',
+  [SurveyMethod.BIM_IFC]: 'BIM Import (IFC)',
+  [SurveyMethod.MANUAL]: 'Manual Modeling'
 };
 
 /**
  * Summary & Administrative Information (Section 2.1.1)
  */
 export interface BuildingSummary {
-  buildingId: string;       // UUID, Read-Only
-  legalStatus: LegalStatus; // Enum, Editable
-  address: string;          // Text, Editable, max 255 chars
-  primaryUse: PrimaryUse;   // Enum, Editable
-  cadastralRef: string;     // Link, Read-Only
-  floorCount: number;       // Integer, Read-Only (calculated from 3D model)
-  registrationDate: string; // ISO 8601, Editable
+  buildingId: string;
+  legalStatus: LegalStatus;
+  address: string;
+  primaryUse: PrimaryUse;
+  cadastralRef: string;
+  floorCount: number;
+  registrationDate: string;
 }
 
 /**
- * Spatial/Geometric (3D) Information
+ * Spatial/Geometric (3D) Information (Section 2.4.1)
  */
 export interface SpatialInfo {
-  footprint: string;
-  solidGeometry: string;
-  boundedBy: string[];
-  heightAboveGround: number;
-  volume: number;
-  surfaceArea: number;
-  coordinateSystem: string;
-  lodLevel: string;
+  footprint: string;          // Read-Only, 2D polygon from CityJSON
+  solidGeometry: string;      // Read-Only, 3D representation
+  lodLevel: LodLevel;         // Read-Only, detected from import
+  height: number;             // Read-Only, max height from vertices
+  crs: CRS;                   // System-Set, detected from import
+  elevationRef: ElevationRef; // Editable, vertical datum
 }
 
 /**
  * Rights, Restrictions & Responsibilities (RRR)
- * Data Dictionary Section 2.1.3
  */
-
-/** A restriction attached to a specific RRR entry */
 export interface RRRRestriction {
   type: RestrictionType;
   description: string;
 }
 
-/** A responsibility attached to a specific RRR entry */
 export interface RRRResponsibility {
   type: ResponsibilityType;
   description: string;
 }
 
-/** One RRR record (right/tenure entry) */
 export interface RRREntry {
-  rrrId: string;                    // UUID, Editable
-  type: RightType;                  // Enum, Editable dropdown
-  holder: string;                   // Person/Org ID, Editable
-  share: number;                    // Float 0-100, Editable
-  validFrom: string;                // ISO 8601, Editable
-  validTo: string;                  // ISO 8601 or '' for indefinite, Editable
-  documentRef: string;              // File path/link, Editable
-  restrictions: RRRRestriction[];   // Linked restrictions for this holder
-  responsibilities: RRRResponsibility[]; // Linked responsibilities for this holder
+  rrrId: string;
+  type: RightType;
+  holder: string;
+  share: number;
+  validFrom: string;
+  validTo: string;
+  documentRef: string;
+  restrictions: RRRRestriction[];
+  responsibilities: RRRResponsibility[];
 }
 
 export interface RRRInfo {
@@ -201,32 +328,29 @@ export interface UnitTaxValuation {
  * Building Unit / Strata Information (Section 2.3.1)
  */
 export interface BuildingUnit {
-  unitId: string;              // Editable, unique ID
-  parentBuilding: string;      // System-Set, FK to BuildingID
-  floorNumber: number;         // Editable, logical floor number
-  unitType: UnitType;          // Enum, Editable
-  boundary: string;            // Read-Only, 3D geometry description
-  accessType: AccessType;      // Enum, Editable
-  cadastralRef: string;        // Editable
-  floorArea: number;           // Editable (m²)
-  registrationDate: string;    // ISO 8601, Editable
-  primaryUse: PrimaryUse;      // Enum, Editable
-  tax: UnitTaxValuation;       // Tax & Valuation for this unit
-  rrr: RRRInfo;                // Rights, Restrictions & Responsibilities for this unit
+  unitId: string;
+  parentBuilding: string;
+  floorNumber: number;
+  unitType: UnitType;
+  boundary: string;
+  accessType: AccessType;
+  cadastralRef: string;
+  floorArea: number;
+  registrationDate: string;
+  primaryUse: PrimaryUse;
+  tax: UnitTaxValuation;
+  rrr: RRRInfo;
 }
 
 /**
- * Physical Attributes
+ * Physical Attributes (Section 2.5.1)
  */
 export interface PhysicalAttributes {
-  buildingFunction: string;
-  numberOfFloors: number;
-  grossFloorArea: number;
-  constructionYear: number;
-  roofType: string;
-  wallMaterial: string;
-  foundationType: string;
-  energyRating?: string;
+  constructionYear: number;     // Editable
+  structureType: StructureType; // Enum, Editable
+  condition: Condition;         // Enum, Editable
+  roofType: RoofType;           // Enum, Editable
+  grossArea: number;            // System-Calculated (sum of unit areas)
 }
 
 /**
@@ -241,23 +365,27 @@ export interface TaxValuation {
 }
 
 /**
- * Relationships & Topology Information
+ * Relationships & Topology Information (Section 2.6.1)
  */
 export interface RelationshipsTopology {
-  parcelRelation: string;
-  adjacentBuildings: string;
-  sharedBoundaries: string;
-  partOfComplex: string;
+  parcelRelation: string;         // Editable, list of UUIDs
+  adjacentBuildings: string;      // System-Calculated
+  sharedWall: boolean;            // Editable, default false
+  topologyStatus: TopologyStatus; // System-Calculated enum
+  overlapVolume: number;          // Read-Only, shown if warning
+  partOfComplex: string;          // Editable, UUID
 }
 
 /**
- * Metadata & Quality Information
+ * Metadata & Quality Information (Section 2.6.1)
  */
 export interface MetadataQuality {
-  accuracyLevel: string;
-  surveyMethod: string;
-  lastUpdated: string;
-  responsibleParty: string;
+  dataQualityID: string;          // Read-Only UUID
+  accuracyLevel: AccuracyLevel;   // Enum, Editable
+  surveyMethod: SurveyMethod;     // Enum, Editable
+  lastUpdated: string;            // System-Set ISO 8601
+  responsibleParty: string;       // System-Set
+  sourceFile: string;             // Read-Only, original filename
 }
 
 /**
@@ -283,7 +411,6 @@ export function extractBuildingInfo(cityjson: any, objectId?: string): BuildingI
   const cityObjects = cityjson.CityObjects;
   const keys = Object.keys(cityObjects);
 
-  // Find the building object
   let buildingKey = objectId;
   if (!buildingKey) {
     buildingKey = keys.find(key =>
@@ -297,7 +424,6 @@ export function extractBuildingInfo(cityjson: any, objectId?: string): BuildingI
   const building = cityObjects[buildingKey];
   const attributes = building.attributes || {};
 
-  // Find all building parts/rooms
   const buildingParts = keys.filter(key => {
     const obj = cityObjects[key];
     return obj.parents?.includes(buildingKey) ||
@@ -346,19 +472,26 @@ export function extractBuildingInfo(cityjson: any, objectId?: string): BuildingI
       };
     });
 
-  // Calculate geometry info
-  let volume = 0;
-  let surfaceArea = 0;
-  if (building.geometry?.length > 0) {
-    const geom = building.geometry[0];
-    volume = geom.volume || attributes.volume || 0;
-    surfaceArea = geom.surfaceArea || attributes.surfaceArea || 0;
-  }
+  // Calculate gross area from units
+  const grossArea = units.reduce((sum, u) => sum + u.floorArea, 0);
 
-  // Resolve legalStatus enum from attribute value
   const resolvedLegalStatus = resolveLegalStatus(attributes.legalStatus);
-  // Resolve primaryUse enum from attribute value
   const resolvedPrimaryUse = resolvePrimaryUse(attributes.function || attributes.usage);
+
+  // Resolve CRS
+  const rawCrs = cityjson.metadata?.referenceSystem || '';
+  let crs = CRS.EPSG_4326;
+  if (rawCrs.includes('3857')) crs = CRS.EPSG_3857;
+  else if (rawCrs.includes('4326')) crs = CRS.EPSG_4326;
+  else if (rawCrs) crs = CRS.EPSG_XXXX;
+
+  // Resolve LoD
+  const rawLod = building.geometry?.[0]?.lod || '2';
+  let lodLevel = LodLevel.LOD2;
+  if (rawLod === '0' || rawLod === 'LoD0') lodLevel = LodLevel.LOD0;
+  else if (rawLod === '1' || rawLod === 'LoD1') lodLevel = LodLevel.LOD1;
+  else if (rawLod === '3' || rawLod === 'LoD3') lodLevel = LodLevel.LOD3;
+  else if (rawLod === '4' || rawLod === 'LoD4') lodLevel = LodLevel.LOD4;
 
   return {
     summary: {
@@ -372,13 +505,11 @@ export function extractBuildingInfo(cityjson: any, objectId?: string): BuildingI
     },
     spatial: {
       footprint: attributes.footprint || 'Polygon',
-      solidGeometry: building.geometry?.[0]?.type || 'Solid',
-      boundedBy: building.geometry?.[0]?.semantics?.surfaces?.map((s: any) => s.type) || [],
-      heightAboveGround: attributes.measuredHeight || attributes.height || 0,
-      volume,
-      surfaceArea,
-      coordinateSystem: cityjson.metadata?.referenceSystem || 'EPSG:4326',
-      lodLevel: building.geometry?.[0]?.lod || 'LoD2'
+      solidGeometry: building.geometry?.[0]?.type || 'MultiSolid',
+      lodLevel,
+      height: attributes.measuredHeight || attributes.height || 0,
+      crs,
+      elevationRef: ElevationRef.MSL
     },
     rrr: {
       entries: [{
@@ -400,14 +531,11 @@ export function extractBuildingInfo(cityjson: any, objectId?: string): BuildingI
     },
     units,
     physicalAttributes: {
-      buildingFunction: attributes.function || 'residential',
-      numberOfFloors: attributes.storeysAboveGround || 1,
-      grossFloorArea: attributes.grossFloorArea || 0,
       constructionYear: attributes.yearOfConstruction || 0,
-      roofType: attributes.roofType || 'flat',
-      wallMaterial: attributes.wallMaterial || 'Not specified',
-      foundationType: attributes.foundationType || 'Not specified',
-      energyRating: attributes.energyRating
+      structureType: StructureType.CONC_REINF,
+      condition: Condition.GOOD,
+      roofType: RoofType.FLAT,
+      grossArea
     },
     taxValuation: attributes.assessedValue ? {
       assessedValue: attributes.assessedValue || 0,
@@ -417,23 +545,24 @@ export function extractBuildingInfo(cityjson: any, objectId?: string): BuildingI
       taxStatus: 'paid'
     } : undefined,
     relationshipsTopology: {
-      parcelRelation: attributes.parcelRelation || 'Parcel 123',
-      adjacentBuildings: attributes.adjacentBuildings || 'Building B-8295-Y, Building B-8293-W',
-      sharedBoundaries: attributes.sharedBoundaries || 'Party Wall East',
-      partOfComplex: attributes.partOfComplex || 'Complex C-100'
+      parcelRelation: attributes.parcelRelation || '',
+      adjacentBuildings: attributes.adjacentBuildings || '',
+      sharedWall: attributes.sharedWall || false,
+      topologyStatus: TopologyStatus.VALID,
+      overlapVolume: attributes.overlapVolume || 0,
+      partOfComplex: attributes.partOfComplex || ''
     },
     metadataQuality: {
-      accuracyLevel: attributes.accuracyLevel || 'Sub-meter',
-      surveyMethod: attributes.surveyMethod || 'LiDAR & GNSS',
-      lastUpdated: attributes.lastUpdated || cityjson.metadata?.fileIdentifier?.date || '2023-10-27T10:30:00Z',
-      responsibleParty: attributes.responsibleParty || 'City Surveyor Office'
+      dataQualityID: crypto.randomUUID?.() || `DQ-${Date.now()}`,
+      accuracyLevel: AccuracyLevel.ACC_TIER2,
+      surveyMethod: SurveyMethod.LIDAR_ALS,
+      lastUpdated: attributes.lastUpdated || cityjson.metadata?.fileIdentifier?.date || new Date().toISOString(),
+      responsibleParty: attributes.responsibleParty || 'City Surveyor Office',
+      sourceFile: cityjson.metadata?.fileIdentifier?.name || ''
     }
   };
 }
 
-/**
- * Resolve a raw legalStatus attribute value to the LegalStatus enum.
- */
 function resolveLegalStatus(raw: string | undefined): LegalStatus {
   if (!raw) return LegalStatus.FREEHOLD;
   const upper = raw.toUpperCase().replace(/[\s_-]/g, '');
@@ -441,14 +570,10 @@ function resolveLegalStatus(raw: string | undefined): LegalStatus {
   if (upper.includes('STRATA')) return LegalStatus.STRATA;
   if (upper.includes('STATE') || upper.includes('CROWN') || upper.includes('GOVERNMENT')) return LegalStatus.STATE;
   if (upper.includes('FREE')) return LegalStatus.FREEHOLD;
-  // Try direct enum match
   if (Object.values(LegalStatus).includes(raw as LegalStatus)) return raw as LegalStatus;
   return LegalStatus.FREEHOLD;
 }
 
-/**
- * Resolve a raw primaryUse / function attribute value to the PrimaryUse enum.
- */
 function resolvePrimaryUse(raw: string | undefined): PrimaryUse {
   if (!raw) return PrimaryUse.RES;
   const upper = raw.toUpperCase().replace(/[\s_-]/g, '');
@@ -457,14 +582,10 @@ function resolvePrimaryUse(raw: string | undefined): PrimaryUse {
   if (upper.includes('MIXED') || upper === 'MIX') return PrimaryUse.MIX;
   if (upper.includes('PUBLIC') || upper.includes('INSTITUTIONAL') || upper === 'PUB') return PrimaryUse.PUB;
   if (upper.includes('RESIDENTIAL') || upper === 'RES') return PrimaryUse.RES;
-  // Try direct enum match
   if (Object.values(PrimaryUse).includes(raw as PrimaryUse)) return raw as PrimaryUse;
   return PrimaryUse.RES;
 }
 
-/**
- * Resolve raw unitType to UnitType enum.
- */
 function resolveUnitType(raw: string | undefined): UnitType {
   if (!raw) return UnitType.APT;
   const upper = raw.toUpperCase().replace(/[\s_-]/g, '');
@@ -476,9 +597,6 @@ function resolveUnitType(raw: string | undefined): UnitType {
   return UnitType.APT;
 }
 
-/**
- * Resolve raw accessType to AccessType enum.
- */
 function resolveAccessType(raw: string | undefined): AccessType {
   if (!raw) return AccessType.COR;
   const upper = raw.toUpperCase().replace(/[\s_-]/g, '');

@@ -12,6 +12,8 @@ import {
   RRRInfo,
   RRRRestriction,
   RRRResponsibility,
+  SpatialInfo,
+  PhysicalAttributes,
   RelationshipsTopology,
   MetadataQuality,
   LegalStatus,
@@ -21,13 +23,31 @@ import {
   ResponsibilityType,
   UnitType,
   AccessType,
+  LodLevel,
+  ElevationRef,
+  CRS,
+  StructureType,
+  Condition,
+  RoofType,
+  TopologyStatus,
+  AccuracyLevel,
+  SurveyMethod,
   LEGAL_STATUS_DISPLAY,
   PRIMARY_USE_DISPLAY,
   RIGHT_TYPE_DISPLAY,
   RESTRICTION_TYPE_DISPLAY,
   RESPONSIBILITY_TYPE_DISPLAY,
   UNIT_TYPE_DISPLAY,
-  ACCESS_TYPE_DISPLAY
+  ACCESS_TYPE_DISPLAY,
+  LOD_LEVEL_DISPLAY,
+  ELEVATION_REF_DISPLAY,
+  CRS_DISPLAY,
+  STRUCTURE_TYPE_DISPLAY,
+  CONDITION_DISPLAY,
+  ROOF_TYPE_DISPLAY,
+  TOPOLOGY_STATUS_DISPLAY,
+  ACCURACY_LEVEL_DISPLAY,
+  SURVEY_METHOD_DISPLAY
 } from '../../models/building-info.model';
 
 type RRRTab = 'overview' | 'ownership';
@@ -51,6 +71,10 @@ export class BuildingInfoPanel {
   summaryChanged = output<BuildingSummary>();
   rrrChanged = output<RRRInfo>();
   unitsChanged = output<BuildingUnit[]>();
+  spatialChanged = output<SpatialInfo>();
+  physicalChanged = output<PhysicalAttributes>();
+  relationshipsChanged = output<RelationshipsTopology>();
+  metadataChanged = output<MetadataQuality>();
 
   // Enum option lists for dropdown selects
   readonly legalStatusOptions = Object.values(LegalStatus);
@@ -60,6 +84,12 @@ export class BuildingInfoPanel {
   readonly responsibilityTypeOptions = Object.values(ResponsibilityType);
   readonly unitTypeOptions = Object.values(UnitType);
   readonly accessTypeOptions = Object.values(AccessType);
+  readonly elevationRefOptions = Object.values(ElevationRef);
+  readonly structureTypeOptions = Object.values(StructureType);
+  readonly conditionOptions = Object.values(Condition);
+  readonly roofTypeOptions = Object.values(RoofType);
+  readonly accuracyLevelOptions = Object.values(AccuracyLevel);
+  readonly surveyMethodOptions = Object.values(SurveyMethod);
 
   readonly legalStatusDisplayMap = LEGAL_STATUS_DISPLAY;
   readonly primaryUseDisplayMap = PRIMARY_USE_DISPLAY;
@@ -68,6 +98,15 @@ export class BuildingInfoPanel {
   readonly responsibilityTypeDisplayMap = RESPONSIBILITY_TYPE_DISPLAY;
   readonly unitTypeDisplayMap = UNIT_TYPE_DISPLAY;
   readonly accessTypeDisplayMap = ACCESS_TYPE_DISPLAY;
+  readonly lodLevelDisplayMap = LOD_LEVEL_DISPLAY;
+  readonly elevationRefDisplayMap = ELEVATION_REF_DISPLAY;
+  readonly crsDisplayMap = CRS_DISPLAY;
+  readonly structureTypeDisplayMap = STRUCTURE_TYPE_DISPLAY;
+  readonly conditionDisplayMap = CONDITION_DISPLAY;
+  readonly roofTypeDisplayMap = ROOF_TYPE_DISPLAY;
+  readonly topologyStatusDisplayMap = TOPOLOGY_STATUS_DISPLAY;
+  readonly accuracyLevelDisplayMap = ACCURACY_LEVEL_DISPLAY;
+  readonly surveyMethodDisplayMap = SURVEY_METHOD_DISPLAY;
 
   // Local state
   expandedSections = signal<Set<CollapsibleSection>>(new Set(['summary', 'units']));
@@ -453,5 +492,41 @@ export class BuildingInfoPanel {
     if (!units[unitIndex]?.rrr?.entries[entryIndex]?.responsibilities[ri]) return;
     (units[unitIndex].rrr.entries[entryIndex].responsibilities[ri] as any)[field] = value;
     this.emitUnitsUpdate(units);
+  }
+
+  // ─── Spatial field editing ──────────────────────────────────
+
+  onSpatialFieldChange(field: keyof SpatialInfo, value: any): void {
+    const info = this.buildingInfo();
+    if (!info) return;
+    const updated: SpatialInfo = { ...info.spatial, [field]: value };
+    this.spatialChanged.emit(updated);
+  }
+
+  // ─── Physical Attributes editing ────────────────────────────
+
+  onPhysicalFieldChange(field: keyof PhysicalAttributes, value: any): void {
+    const info = this.buildingInfo();
+    if (!info) return;
+    const updated: PhysicalAttributes = { ...info.physicalAttributes, [field]: value };
+    this.physicalChanged.emit(updated);
+  }
+
+  // ─── Relationships & Topology editing ───────────────────────
+
+  onRelationshipsFieldChange(field: keyof RelationshipsTopology, value: any): void {
+    const info = this.buildingInfo();
+    if (!info) return;
+    const updated: RelationshipsTopology = { ...info.relationshipsTopology, [field]: value };
+    this.relationshipsChanged.emit(updated);
+  }
+
+  // ─── Metadata & Quality editing ─────────────────────────────
+
+  onMetadataFieldChange(field: keyof MetadataQuality, value: any): void {
+    const info = this.buildingInfo();
+    if (!info) return;
+    const updated: MetadataQuality = { ...info.metadataQuality, [field]: value };
+    this.metadataChanged.emit(updated);
   }
 }

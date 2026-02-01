@@ -157,49 +157,46 @@
         </button>
         @if (isSectionExpanded('spatial')) {
           <div class="section-content">
-            <table class="info-table">
+            <table class="info-table editable-table">
+              <!-- footprint: Read-Only -->
               <tr>
                 <td class="label">Footprint</td>
-                <td class="value">{{ buildingInfo()?.spatial?.footprint || 'N/A' }}</td>
+                <td class="value read-only">{{ buildingInfo()?.spatial?.footprint || 'N/A' }}</td>
               </tr>
+              <!-- solidGeometry: Read-Only -->
               <tr>
                 <td class="label">Solid Geometry</td>
-                <td class="value">{{ buildingInfo()?.spatial?.solidGeometry || 'N/A' }}</td>
+                <td class="value read-only">{{ buildingInfo()?.spatial?.solidGeometry || 'N/A' }}</td>
               </tr>
-              <tr>
-                <td class="label">Bounded By</td>
-                <td class="value">
-                  @if (buildingInfo()?.spatial?.boundedBy?.length) {
-                    <span class="tag-list">
-                      @for (surface of buildingInfo()?.spatial?.boundedBy; track surface) {
-                        <span class="tag">{{ surface }}</span>
-                      }
-                    </span>
-                  } @else {
-                    N/A
-                  }
-                </td>
-              </tr>
-              <tr>
-                <td class="label">Height Above Ground</td>
-                <td class="value">{{ formatHeight(buildingInfo()?.spatial?.heightAboveGround) }}</td>
-              </tr>
-              <tr>
-                <td class="label">Volume</td>
-                <td class="value">{{ formatVolume(buildingInfo()?.spatial?.volume) }}</td>
-              </tr>
-              <tr>
-                <td class="label">Surface Area</td>
-                <td class="value">{{ formatArea(buildingInfo()?.spatial?.surfaceArea) }}</td>
-              </tr>
-              <tr>
-                <td class="label">Coordinate System</td>
-                <td class="value">{{ buildingInfo()?.spatial?.coordinateSystem || 'N/A' }}</td>
-              </tr>
+              <!-- lodLevel: Read-Only Enum -->
               <tr>
                 <td class="label">LoD Level</td>
                 <td class="value">
-                  <span class="badge badge-info">{{ buildingInfo()?.spatial?.lodLevel || 'N/A' }}</span>
+                  <span class="badge badge-info">{{ lodLevelDisplayMap[buildingInfo()!.spatial.lodLevel] || 'N/A' }}</span>
+                </td>
+              </tr>
+              <!-- height: Read-Only -->
+              <tr>
+                <td class="label">Height</td>
+                <td class="value read-only">{{ formatHeight(buildingInfo()?.spatial?.height) }}</td>
+              </tr>
+              <!-- crs: System-Set -->
+              <tr>
+                <td class="label">CRS</td>
+                <td class="value read-only">{{ crsDisplayMap[buildingInfo()!.spatial.crs] || 'N/A' }}</td>
+              </tr>
+              <!-- elevationRef: Editable Enum -->
+              <tr>
+                <td class="label">Elevation Ref.</td>
+                <td class="value">
+                  <select
+                    class="field-select"
+                    [ngModel]="buildingInfo()?.spatial?.elevationRef ?? ''"
+                    (ngModelChange)="onSpatialFieldChange('elevationRef', $event)">
+                    @for (opt of elevationRefOptions; track opt) {
+                      <option [value]="opt">{{ elevationRefDisplayMap[opt] }}</option>
+                    }
+                  </select>
                 </td>
               </tr>
             </table>
@@ -818,43 +815,68 @@
         </button>
         @if (isSectionExpanded('physical')) {
           <div class="section-content">
-            <table class="info-table">
-              <tr>
-                <td class="label">Building Function</td>
-                <td class="value">{{ buildingInfo()?.physicalAttributes?.buildingFunction || 'N/A' }}</td>
-              </tr>
-              <tr>
-                <td class="label">Number of Floors</td>
-                <td class="value">{{ buildingInfo()?.physicalAttributes?.numberOfFloors || 'N/A' }}</td>
-              </tr>
-              <tr>
-                <td class="label">Gross Floor Area</td>
-                <td class="value">{{ formatArea(buildingInfo()?.physicalAttributes?.grossFloorArea) }}</td>
-              </tr>
+            <table class="info-table editable-table">
+              <!-- constructionYear: Editable -->
               <tr>
                 <td class="label">Construction Year</td>
-                <td class="value">{{ buildingInfo()?.physicalAttributes?.constructionYear || 'N/A' }}</td>
+                <td class="value">
+                  <input
+                    type="number"
+                    class="field-input"
+                    [ngModel]="buildingInfo()?.physicalAttributes?.constructionYear ?? 0"
+                    (ngModelChange)="onPhysicalFieldChange('constructionYear', $event)"
+                    min="1800"
+                    max="2099"
+                  />
+                </td>
               </tr>
+              <!-- structureType: Enum, Editable -->
+              <tr>
+                <td class="label">Structure Type</td>
+                <td class="value">
+                  <select
+                    class="field-select"
+                    [ngModel]="buildingInfo()?.physicalAttributes?.structureType ?? ''"
+                    (ngModelChange)="onPhysicalFieldChange('structureType', $event)">
+                    @for (opt of structureTypeOptions; track opt) {
+                      <option [value]="opt">{{ structureTypeDisplayMap[opt] }}</option>
+                    }
+                  </select>
+                </td>
+              </tr>
+              <!-- condition: Enum, Editable -->
+              <tr>
+                <td class="label">Condition</td>
+                <td class="value">
+                  <select
+                    class="field-select"
+                    [ngModel]="buildingInfo()?.physicalAttributes?.condition ?? ''"
+                    (ngModelChange)="onPhysicalFieldChange('condition', $event)">
+                    @for (opt of conditionOptions; track opt) {
+                      <option [value]="opt">{{ conditionDisplayMap[opt] }}</option>
+                    }
+                  </select>
+                </td>
+              </tr>
+              <!-- roofType: Enum, Editable -->
               <tr>
                 <td class="label">Roof Type</td>
-                <td class="value">{{ buildingInfo()?.physicalAttributes?.roofType || 'N/A' }}</td>
+                <td class="value">
+                  <select
+                    class="field-select"
+                    [ngModel]="buildingInfo()?.physicalAttributes?.roofType ?? ''"
+                    (ngModelChange)="onPhysicalFieldChange('roofType', $event)">
+                    @for (opt of roofTypeOptions; track opt) {
+                      <option [value]="opt">{{ roofTypeDisplayMap[opt] }}</option>
+                    }
+                  </select>
+                </td>
               </tr>
+              <!-- grossArea: System-Calculated, Read-Only -->
               <tr>
-                <td class="label">Wall Material</td>
-                <td class="value">{{ buildingInfo()?.physicalAttributes?.wallMaterial || 'N/A' }}</td>
+                <td class="label">Gross Area</td>
+                <td class="value read-only">{{ formatArea(buildingInfo()?.physicalAttributes?.grossArea) }}</td>
               </tr>
-              <tr>
-                <td class="label">Foundation Type</td>
-                <td class="value">{{ buildingInfo()?.physicalAttributes?.foundationType || 'N/A' }}</td>
-              </tr>
-              @if (buildingInfo()?.physicalAttributes?.energyRating) {
-                <tr>
-                  <td class="label">Energy Rating</td>
-                  <td class="value">
-                    <span class="badge badge-success">{{ buildingInfo()?.physicalAttributes?.energyRating }}</span>
-                  </td>
-                </tr>
-              }
             </table>
           </div>
         }
@@ -884,22 +906,70 @@
         </button>
         @if (isSectionExpanded('relationships')) {
           <div class="section-content">
-            <table class="info-table">
+            <table class="info-table editable-table">
+              <!-- parcelRelation: Editable -->
               <tr>
-                <td class="label">parcelRelation</td>
-                <td class="value">{{ buildingInfo()?.relationshipsTopology?.parcelRelation || 'N/A' }}</td>
+                <td class="label">Parcel Relation</td>
+                <td class="value">
+                  <input
+                    type="text"
+                    class="field-input"
+                    [ngModel]="buildingInfo()?.relationshipsTopology?.parcelRelation ?? ''"
+                    (ngModelChange)="onRelationshipsFieldChange('parcelRelation', $event)"
+                    placeholder="UUID(s) of linked parcel(s)"
+                  />
+                </td>
               </tr>
+              <!-- adjacentBuildings: System-Calculated, Read-Only -->
               <tr>
-                <td class="label">adjacentBuildings</td>
-                <td class="value">{{ buildingInfo()?.relationshipsTopology?.adjacentBuildings || 'N/A' }}</td>
+                <td class="label">Adjacent Buildings</td>
+                <td class="value read-only">{{ buildingInfo()?.relationshipsTopology?.adjacentBuildings || 'None detected' }}</td>
               </tr>
+              <!-- sharedWall: Boolean, Editable -->
               <tr>
-                <td class="label">sharedBoundaries</td>
-                <td class="value">{{ buildingInfo()?.relationshipsTopology?.sharedBoundaries || 'N/A' }}</td>
+                <td class="label">Shared Wall</td>
+                <td class="value">
+                  <label class="toggle-label">
+                    <input
+                      type="checkbox"
+                      class="field-checkbox"
+                      [ngModel]="buildingInfo()?.relationshipsTopology?.sharedWall ?? false"
+                      (ngModelChange)="onRelationshipsFieldChange('sharedWall', $event)"
+                    />
+                    <span class="toggle-text">{{ buildingInfo()?.relationshipsTopology?.sharedWall ? 'Yes (Party Wall)' : 'No' }}</span>
+                  </label>
+                </td>
               </tr>
+              <!-- topologyStatus: Enum, System-Calculated, Read-Only -->
               <tr>
-                <td class="label">partOfComplex</td>
-                <td class="value">{{ buildingInfo()?.relationshipsTopology?.partOfComplex || 'N/A' }}</td>
+                <td class="label">Topology Status</td>
+                <td class="value">
+                  <span class="badge"
+                    [class.badge-success]="buildingInfo()?.relationshipsTopology?.topologyStatus === 'VALID'"
+                    [class.badge-warning]="buildingInfo()?.relationshipsTopology?.topologyStatus === 'WARN_OVER' || buildingInfo()?.relationshipsTopology?.topologyStatus === 'WARN_GAP'">
+                    {{ topologyStatusDisplayMap[buildingInfo()!.relationshipsTopology.topologyStatus] || 'N/A' }}
+                  </span>
+                </td>
+              </tr>
+              <!-- overlapVolume: Read-Only, shown only if warning -->
+              @if (buildingInfo()?.relationshipsTopology?.topologyStatus !== 'VALID' && buildingInfo()?.relationshipsTopology?.overlapVolume) {
+                <tr>
+                  <td class="label">Overlap Volume</td>
+                  <td class="value read-only">{{ formatVolume(buildingInfo()?.relationshipsTopology?.overlapVolume) }}</td>
+                </tr>
+              }
+              <!-- partOfComplex: Editable -->
+              <tr>
+                <td class="label">Part of Complex</td>
+                <td class="value">
+                  <input
+                    type="text"
+                    class="field-input"
+                    [ngModel]="buildingInfo()?.relationshipsTopology?.partOfComplex ?? ''"
+                    (ngModelChange)="onRelationshipsFieldChange('partOfComplex', $event)"
+                    placeholder="Parent Complex UUID"
+                  />
+                </td>
               </tr>
             </table>
           </div>
@@ -930,22 +1000,54 @@
         </button>
         @if (isSectionExpanded('metadata')) {
           <div class="section-content">
-            <table class="info-table">
+            <table class="info-table editable-table">
+              <!-- dataQualityID: Read-Only -->
               <tr>
-                <td class="label">accuracyLevel</td>
-                <td class="value">{{ buildingInfo()?.metadataQuality?.accuracyLevel || 'N/A' }}</td>
+                <td class="label">Data Quality ID</td>
+                <td class="value read-only">{{ buildingInfo()?.metadataQuality?.dataQualityID || 'N/A' }}</td>
               </tr>
+              <!-- accuracyLevel: Enum, Editable -->
               <tr>
-                <td class="label">surveyMethod</td>
-                <td class="value">{{ buildingInfo()?.metadataQuality?.surveyMethod || 'N/A' }}</td>
+                <td class="label">Accuracy Level</td>
+                <td class="value">
+                  <select
+                    class="field-select"
+                    [ngModel]="buildingInfo()?.metadataQuality?.accuracyLevel ?? ''"
+                    (ngModelChange)="onMetadataFieldChange('accuracyLevel', $event)">
+                    @for (opt of accuracyLevelOptions; track opt) {
+                      <option [value]="opt">{{ accuracyLevelDisplayMap[opt] }}</option>
+                    }
+                  </select>
+                </td>
               </tr>
+              <!-- surveyMethod: Enum, Editable -->
               <tr>
-                <td class="label">lastUpdated</td>
-                <td class="value">{{ buildingInfo()?.metadataQuality?.lastUpdated || 'N/A' }}</td>
+                <td class="label">Survey Method</td>
+                <td class="value">
+                  <select
+                    class="field-select"
+                    [ngModel]="buildingInfo()?.metadataQuality?.surveyMethod ?? ''"
+                    (ngModelChange)="onMetadataFieldChange('surveyMethod', $event)">
+                    @for (opt of surveyMethodOptions; track opt) {
+                      <option [value]="opt">{{ surveyMethodDisplayMap[opt] }}</option>
+                    }
+                  </select>
+                </td>
               </tr>
+              <!-- lastUpdated: System-Set, Read-Only -->
               <tr>
-                <td class="label">responsibleParty</td>
-                <td class="value">{{ buildingInfo()?.metadataQuality?.responsibleParty || 'N/A' }}</td>
+                <td class="label">Last Updated</td>
+                <td class="value read-only">{{ buildingInfo()?.metadataQuality?.lastUpdated || 'N/A' }}</td>
+              </tr>
+              <!-- responsibleParty: System-Set, Read-Only -->
+              <tr>
+                <td class="label">Responsible Party</td>
+                <td class="value read-only">{{ buildingInfo()?.metadataQuality?.responsibleParty || 'N/A' }}</td>
+              </tr>
+              <!-- sourceFile: Read-Only -->
+              <tr>
+                <td class="label">Source File</td>
+                <td class="value read-only">{{ buildingInfo()?.metadataQuality?.sourceFile || 'N/A' }}</td>
               </tr>
             </table>
           </div>

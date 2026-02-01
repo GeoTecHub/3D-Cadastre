@@ -825,6 +825,26 @@
   max-width: 80px;
 }
 
+/* Toggle / Checkbox label */
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.field-checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: #6366f1;
+  cursor: pointer;
+}
+
+.toggle-text {
+  font-size: 0.8rem;
+  color: #e2e8f0;
+}
+
 /* Responsive */
 @media (max-width: 1200px) {
   .info-panel {
