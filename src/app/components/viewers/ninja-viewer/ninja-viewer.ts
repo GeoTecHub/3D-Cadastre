@@ -9,6 +9,8 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { NinjaLoader } from 'src/app/services/ninja-loader';
 import { CityjsonService } from 'src/app/services/cityjson';
 import { Apartment } from 'src/app/services/cityjson.model';
+import { GeoTransformService } from 'src/app/services/geo-transform.service';
+import { OsmTileService } from 'src/app/services/osm-tile.service';
 import { toSignal } from '@angular/core/rxjs-interop';
 
 @Component({
@@ -43,9 +45,13 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
 
   // --- MODERN SIGNALS ---
   focusObjectId = input<string | null>(null);
+  showOsmMap = input<boolean>(false);
   objectSelected = output<string>();
   apartmentCreated = output<Apartment>();
+  osmMapStatus = output<'loading' | 'loaded' | 'no-crs' | 'error'>();
   private cityjsonService = inject(CityjsonService);
+  private geoTransformService = inject(GeoTransformService);
+  private osmTileService = inject(OsmTileService);
   // Convert Service Observable to Signal
   cityData = toSignal(this.cityjsonService.cityjsonData$);
 
@@ -75,6 +81,10 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
   // Pointer state
   private pointerIsDown = false;
   private pointerDownPos = new THREE.Vector2();
+
+  // OSM ground plane
+  private osmGroup: THREE.Group | null = null;
+  private osmLoading = false;
 
   // Explode view state
   private isExploded = false;
@@ -119,7 +129,19 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
       });
     });
 
-    // 2. React to Input Selection Changes
+    // 2. React to OSM map toggle
+    effect(() => {
+      const show = this.showOsmMap();
+      untracked(() => {
+        if (show) {
+          this.loadOsmGroundPlane();
+        } else {
+          this.removeOsmGroundPlane();
+        }
+      });
+    });
+
+    // 3. React to Input Selection Changes
     effect(() => {
       const id = this.focusObjectId();
       untracked(() => {
@@ -220,6 +242,7 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
       this.cityModel = null;
     }
     this.meshLookup.clear();
+    this.removeOsmGroundPlane();
     this.clearSelection(true);
     this.clearHover();
   }
@@ -694,6 +717,74 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
 
   public getCurrentRoomSelection(): string[] {
     return [...this.currentRoomSelection];
+  }
+
+  // ─── OSM Ground Plane ─────────────────────────────────────
+
+  private async loadOsmGroundPlane(): Promise<void> {
+    if (this.osmLoading || this.osmGroup) return;
+
+    const data = this.cityData();
+    if (!data || !this.cityModel) {
+      this.osmMapStatus.emit('no-crs');
+      return;
+    }
+
+    const extent = this.geoTransformService.getGeoExtent(data);
+    if (!extent) {
+      this.osmMapStatus.emit('no-crs');
+      return;
+    }
+
+    this.osmLoading = true;
+    this.osmMapStatus.emit('loading');
+
+    try {
+      // Calculate the building's bounding box in scene coordinates
+      const box = new THREE.Box3().setFromObject(this.cityModel);
+      const center = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, 1);
+
+      // Place the ground plane at the bottom of the building
+      const groundCenter = new THREE.Vector3(center.x, center.y, box.min.z);
+
+      const result = await this.osmTileService.createGroundPlane(
+        extent,
+        groundCenter,
+        maxDim
+      );
+
+      if (result && this.showOsmMap()) {
+        this.osmGroup = result.group;
+        this.scene.add(this.osmGroup);
+        this.osmMapStatus.emit('loaded');
+      } else if (!result) {
+        this.osmMapStatus.emit('error');
+      }
+    } catch (err) {
+      console.warn('Failed to load OSM ground plane:', err);
+      this.osmMapStatus.emit('error');
+    } finally {
+      this.osmLoading = false;
+    }
+  }
+
+  private removeOsmGroundPlane(): void {
+    if (!this.osmGroup) return;
+
+    // Dispose all tile textures and geometries
+    this.osmGroup.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.geometry.dispose();
+        const mat = child.material as THREE.MeshBasicMaterial;
+        mat.map?.dispose();
+        mat.dispose();
+      }
+    });
+
+    this.scene.remove(this.osmGroup);
+    this.osmGroup = null;
   }
 
   // ─── Highlight Rooms (for unit-click in panel) ─────────────

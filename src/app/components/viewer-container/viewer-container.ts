@@ -47,6 +47,10 @@ export class ViewerContainer {
   // Track the backend record ID for the currently loaded model
   currentRecordId = signal<number | null>(null);
 
+  // OSM map state
+  showOsmMap = signal(false);
+  osmMapStatusMsg = signal<string | null>(null);
+
   // Dialog visibility
   showSaveModelDialog = signal(false);
   showCreateApartmentDialog = signal(false);
@@ -365,6 +369,38 @@ export class ViewerContainer {
       this.saveStatus.set(error instanceof Error ? error.message : 'Failed to save apartment.');
     } finally {
       this.isSaving.set(false);
+    }
+  }
+
+  // ─── OSM Map ─────────────────────────────────────────────
+
+  toggleOsmMap(): void {
+    this.showOsmMap.update(v => !v);
+    if (!this.showOsmMap()) {
+      this.osmMapStatusMsg.set(null);
+    }
+  }
+
+  onOsmMapStatus(status: 'loading' | 'loaded' | 'no-crs' | 'error'): void {
+    switch (status) {
+      case 'loading':
+        this.osmMapStatusMsg.set('Loading OSM map tiles...');
+        break;
+      case 'loaded':
+        this.osmMapStatusMsg.set('OSM map loaded');
+        // Auto-clear after 3s
+        setTimeout(() => {
+          if (this.osmMapStatusMsg() === 'OSM map loaded') {
+            this.osmMapStatusMsg.set(null);
+          }
+        }, 3000);
+        break;
+      case 'no-crs':
+        this.osmMapStatusMsg.set('No CRS defined in model — add a referenceSystem to the CityJSON metadata to enable the map.');
+        break;
+      case 'error':
+        this.osmMapStatusMsg.set('Failed to load OSM tiles.');
+        break;
     }
   }
 
