@@ -90,6 +90,14 @@
         }
       </div>
 
+      <button class="toolbar-btn icon-only" [class.active]="showOsmMap()" (click)="toggleOsmMap()" [disabled]="!cityjson()" title="Toggle OSM Map">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="2" y1="12" x2="22" y2="12"/>
+          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+        </svg>
+      </button>
+
       <button class="toolbar-btn icon-only" (click)="reloadDefaultModel()" title="Load Sample">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="23 4 23 10 17 10"/>
@@ -125,8 +133,10 @@
         @if (activeViewer() === 'ninja') {
           <app-ninja-viewer
             [focusObjectId]="selectedObjectId()"
+            [showOsmMap]="showOsmMap()"
             (objectSelected)="onSelectionChange($event)"
-            (apartmentCreated)="onApartmentCreated($event)">
+            (apartmentCreated)="onApartmentCreated($event)"
+            (osmMapStatus)="onOsmMapStatus($event)">
           </app-ninja-viewer>
         }
 
@@ -134,6 +144,17 @@
           <div class="viewer-placeholder">
             <h3>Three.js Viewer</h3>
             <p>Coming soon...</p>
+          </div>
+        }
+
+        @if (osmMapStatusMsg()) {
+          <div class="osm-status-bar" [class.error]="osmMapStatusMsg()!.includes('No CRS') || osmMapStatusMsg()!.includes('Failed')">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="2" y1="12" x2="22" y2="12"/>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+            </svg>
+            <span>{{ osmMapStatusMsg() }}</span>
           </div>
         }
 

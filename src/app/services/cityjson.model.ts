@@ -9,6 +9,17 @@ export interface Transform {
 }
 
 /**
+ * CityJSON metadata block.
+ */
+export interface CityJSONMetadata {
+  referenceSystem?: string;          // e.g. "urn:ogc:def:crs:EPSG::4326"
+  geographicalExtent?: number[];     // [minX, minY, minZ, maxX, maxY, maxZ]
+  identifier?: string;
+  fileIdentifier?: { name?: string; date?: string };
+  [key: string]: any;
+}
+
+/**
  * Defines the main structure of a CityJSON file.
  */
 export interface CityJSON {
@@ -17,6 +28,7 @@ export interface CityJSON {
   vertices: number[][];
   CityObjects: { [key: string]: any };
   transform?: Transform;
+  metadata?: CityJSONMetadata;
 }
 
 export interface CityObject {
