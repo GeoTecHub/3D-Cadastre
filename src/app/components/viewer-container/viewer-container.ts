@@ -5,6 +5,7 @@ import { CityjsonService } from '../../services/cityjson';
 import { BackendService } from '../../services/backend.service';
 import { NinjaViewer } from '../viewers/ninja-viewer/ninja-viewer';
 import { BuildingInfoPanel } from '../building-info-panel/building-info-panel';
+import { LandInfoPanel } from '../land-info-panel/land-info-panel';
 import { SaveModelDialog, SaveModelResult } from '../dialogs/save-model-dialog/save-model-dialog';
 import { CreateApartmentDialog, CreateApartmentResult } from '../dialogs/create-apartment-dialog/create-apartment-dialog';
 import { Apartment, CityJSONRecord } from '../../services/cityjson.model';
@@ -13,13 +14,21 @@ import {
   SpatialInfo, PhysicalAttributes, RelationshipsTopology, MetadataQuality,
   extractBuildingInfo
 } from '../../models/building-info.model';
+import {
+  LandParcelInfo, createDefaultLandParcel,
+  ParcelIdentification, ParcelSpatial, ParcelPhysical,
+  ParcelZoning, ParcelValuation, ParcelRelationships, ParcelMetadata,
+  RRRInfo as LandRRRInfo
+} from '../../models/land-parcel.model';
+
+type SidebarTab = 'building' | 'land';
 
 type ViewerType = 'ninja' | 'threejs';
 
 @Component({
   selector: 'app-viewer-container',
   standalone: true,
-  imports: [CommonModule, NinjaViewer, BuildingInfoPanel, SaveModelDialog, CreateApartmentDialog],
+  imports: [CommonModule, NinjaViewer, BuildingInfoPanel, LandInfoPanel, SaveModelDialog, CreateApartmentDialog],
   templateUrl: './viewer-container.html',
   styleUrls: ['./viewer-container.css']
 })
@@ -55,6 +64,13 @@ export class ViewerContainer {
   showSaveModelDialog = signal(false);
   showCreateApartmentDialog = signal(false);
   selectedRoomsForApartment = signal<string[]>([]);
+
+  // Sidebar tab
+  activeSidebarTab = signal<SidebarTab>('building');
+
+  // Land parcel info
+  private _parcelInfoOverride = signal<LandParcelInfo | null>(null);
+  parcelInfo = computed<LandParcelInfo | null>(() => this._parcelInfoOverride());
 
   // Resizable sidebar
   sidebarWidth = signal(340);
@@ -481,6 +497,75 @@ export class ViewerContainer {
     if (this.ninjaViewer) {
       this.ninjaViewer.highlightRoomIds(roomIds);
     }
+  }
+
+  // ─── Sidebar Tab ────────────────────────────────────────
+
+  switchSidebarTab(tab: SidebarTab): void {
+    this.activeSidebarTab.set(tab);
+  }
+
+  // ─── Land Panel Handlers ──────────────────────────────────
+
+  onParcelIdentificationChanged(updated: ParcelIdentification): void {
+    const current = this.parcelInfo() || createDefaultLandParcel();
+    this._parcelInfoOverride.set({ ...current, identification: updated });
+  }
+
+  onParcelSpatialChanged(updated: ParcelSpatial): void {
+    const current = this.parcelInfo();
+    if (!current) return;
+    this._parcelInfoOverride.set({ ...current, spatial: updated });
+  }
+
+  onParcelPhysicalChanged(updated: ParcelPhysical): void {
+    const current = this.parcelInfo();
+    if (!current) return;
+    this._parcelInfoOverride.set({ ...current, physical: updated });
+  }
+
+  onParcelZoningChanged(updated: ParcelZoning): void {
+    const current = this.parcelInfo();
+    if (!current) return;
+    this._parcelInfoOverride.set({ ...current, zoning: updated });
+  }
+
+  onParcelRRRChanged(updated: LandRRRInfo): void {
+    const current = this.parcelInfo();
+    if (!current) return;
+    this._parcelInfoOverride.set({ ...current, rrr: updated });
+  }
+
+  onParcelValuationChanged(updated: ParcelValuation): void {
+    const current = this.parcelInfo();
+    if (!current) return;
+    this._parcelInfoOverride.set({ ...current, valuation: updated });
+  }
+
+  onParcelRelationshipsChanged(updated: ParcelRelationships): void {
+    const current = this.parcelInfo();
+    if (!current) return;
+    this._parcelInfoOverride.set({ ...current, relationships: updated });
+  }
+
+  onParcelMetadataChanged(updated: ParcelMetadata): void {
+    const current = this.parcelInfo();
+    if (!current) return;
+    this._parcelInfoOverride.set({ ...current, metadata: updated });
+  }
+
+  onSaveParcelRequested(info: LandParcelInfo): void {
+    this._parcelInfoOverride.set(info);
+    this.saveStatus.set('Parcel details saved locally.');
+  }
+
+  onNewParcelRequested(parcel: LandParcelInfo): void {
+    this._parcelInfoOverride.set(parcel);
+  }
+
+  onDeleteParcelRequested(): void {
+    this._parcelInfoOverride.set(null);
+    this.saveStatus.set('Parcel details cleared.');
   }
 
   // ─── Sidebar Resize ──────────────────────────────────────

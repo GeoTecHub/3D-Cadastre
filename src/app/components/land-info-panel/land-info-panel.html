@@ -1,0 +1,260 @@
+<div class="land-panel">
+  @if (!parcelInfo()) {
+    <div class="empty-state">
+      <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+        <circle cx="12" cy="10" r="3"/>
+      </svg>
+      <p>No parcel selected. Click a parcel on the map or create a new one.</p>
+      <button class="create-parcel-btn" (click)="createNewParcel()">
+        + New Parcel
+      </button>
+    </div>
+  } @else {
+    <div class="panel-content">
+
+      <!-- ═══ Identification & Administrative ═══ -->
+      <div class="collapsible-section">
+        <button class="section-header" [class.expanded]="isSectionExpanded('identification')" (click)="toggleSection('identification')">
+          <span class="section-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
+          <span class="section-title">Identification & Administrative</span>
+          <span class="chevron"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        @if (isSectionExpanded('identification')) {
+          <div class="section-content">
+            <table class="info-table editable-table">
+              <tr><td class="label">Parcel ID</td><td class="value"><input type="text" class="field-input" [ngModel]="parcelInfo()!.identification.parcelId" (ngModelChange)="onIdentificationFieldChange('parcelId', $event)" placeholder="e.g., P-2024-001" /></td></tr>
+              <tr><td class="label">Cadastral Ref.</td><td class="value"><input type="text" class="field-input" [ngModel]="parcelInfo()!.identification.cadastralRef" (ngModelChange)="onIdentificationFieldChange('cadastralRef', $event)" placeholder="Lot/Plan number" /></td></tr>
+              <tr><td class="label">Parcel Type</td><td class="value"><select class="field-select" [ngModel]="parcelInfo()!.identification.parcelType" (ngModelChange)="onIdentificationFieldChange('parcelType', $event)">@for (opt of parcelTypeOptions; track opt) {<option [value]="opt">{{ parcelTypeDisplayMap[opt] }}</option>}</select></td></tr>
+              <tr><td class="label">Status</td><td class="value"><select class="field-select" [ngModel]="parcelInfo()!.identification.parcelStatus" (ngModelChange)="onIdentificationFieldChange('parcelStatus', $event)">@for (opt of parcelStatusOptions; track opt) {<option [value]="opt">{{ parcelStatusDisplayMap[opt] }}</option>}</select></td></tr>
+              <tr><td class="label">Land Use</td><td class="value"><select class="field-select" [ngModel]="parcelInfo()!.identification.landUse" (ngModelChange)="onIdentificationFieldChange('landUse', $event)">@for (opt of landUseOptions; track opt) {<option [value]="opt">{{ landUseDisplayMap[opt] }}</option>}</select></td></tr>
+              <tr><td class="label">Tenure Type</td><td class="value"><select class="field-select" [ngModel]="parcelInfo()!.identification.tenureType" (ngModelChange)="onIdentificationFieldChange('tenureType', $event)">@for (opt of tenureTypeOptions; track opt) {<option [value]="opt">{{ tenureTypeDisplayMap[opt] }}</option>}</select></td></tr>
+              <tr><td class="label">Registration Date</td><td class="value"><input type="date" class="field-input" [ngModel]="parcelInfo()!.identification.registrationDate" (ngModelChange)="onIdentificationFieldChange('registrationDate', $event)" /></td></tr>
+              <tr><td class="label">Local Authority</td><td class="value"><input type="text" class="field-input" [ngModel]="parcelInfo()!.identification.localAuthority" (ngModelChange)="onIdentificationFieldChange('localAuthority', $event)" placeholder="Municipality / District" /></td></tr>
+            </table>
+          </div>
+        }
+      </div>
+
+      <!-- ═══ Spatial / Geometric (2D) ═══ -->
+      <div class="collapsible-section">
+        <button class="section-header" [class.expanded]="isSectionExpanded('spatial')" (click)="toggleSection('spatial')">
+          <span class="section-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg></span>
+          <span class="section-title">Spatial / Geometric (2D)</span>
+          <span class="chevron"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        @if (isSectionExpanded('spatial')) {
+          <div class="section-content">
+            <table class="info-table editable-table">
+              <tr><td class="label">Area</td><td class="value"><input type="number" class="field-input" [ngModel]="parcelInfo()!.spatial.area" (ngModelChange)="onSpatialFieldChange('area', $event)" min="0" /> m²</td></tr>
+              <tr><td class="label">Perimeter</td><td class="value"><input type="number" class="field-input" [ngModel]="parcelInfo()!.spatial.perimeter" (ngModelChange)="onSpatialFieldChange('perimeter', $event)" min="0" /> m</td></tr>
+              <tr><td class="label">Geometry Type</td><td class="value read-only">{{ parcelInfo()!.spatial.geometryType }}</td></tr>
+              <tr><td class="label">Boundary Type</td><td class="value"><select class="field-select" [ngModel]="parcelInfo()!.spatial.boundaryType" (ngModelChange)="onSpatialFieldChange('boundaryType', $event)">@for (opt of boundaryTypeOptions; track opt) {<option [value]="opt">{{ boundaryTypeDisplayMap[opt] }}</option>}</select></td></tr>
+              <tr><td class="label">Vertices</td><td class="value read-only">{{ parcelInfo()!.spatial.coordinateCount }}</td></tr>
+              <tr><td class="label">CRS</td><td class="value read-only">{{ parcelInfo()!.spatial.crs }}</td></tr>
+              <tr><td class="label">Centroid (Lon)</td><td class="value"><input type="number" class="field-input" [ngModel]="parcelInfo()!.spatial.centroidLon" (ngModelChange)="onSpatialFieldChange('centroidLon', $event)" step="0.000001" /></td></tr>
+              <tr><td class="label">Centroid (Lat)</td><td class="value"><input type="number" class="field-input" [ngModel]="parcelInfo()!.spatial.centroidLat" (ngModelChange)="onSpatialFieldChange('centroidLat', $event)" step="0.000001" /></td></tr>
+            </table>
+          </div>
+        }
+      </div>
+
+      <!-- ═══ Physical & Environmental ═══ -->
+      <div class="collapsible-section">
+        <button class="section-header" [class.expanded]="isSectionExpanded('physical')" (click)="toggleSection('physical')">
+          <span class="section-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></span>
+          <span class="section-title">Physical & Environmental</span>
+          <span class="chevron"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        @if (isSectionExpanded('physical')) {
+          <div class="section-content">
+            <table class="info-table editable-table">
+              <tr><td class="label">Elevation</td><td class="value"><input type="number" class="field-input" [ngModel]="parcelInfo()!.physical.elevation" (ngModelChange)="onPhysicalFieldChange('elevation', $event)" /> m</td></tr>
+              <tr><td class="label">Slope</td><td class="value"><input type="number" class="field-input" [ngModel]="parcelInfo()!.physical.slope" (ngModelChange)="onPhysicalFieldChange('slope', $event)" min="0" max="90" /> &deg;</td></tr>
+              <tr><td class="label">Soil Type</td><td class="value"><select class="field-select" [ngModel]="parcelInfo()!.physical.soilType" (ngModelChange)="onPhysicalFieldChange('soilType', $event)">@for (opt of soilTypeOptions; track opt) {<option [value]="opt">{{ soilTypeDisplayMap[opt] }}</option>}</select></td></tr>
+              <tr><td class="label">Flood Zone</td><td class="value"><label class="toggle-label"><input type="checkbox" class="field-checkbox" [ngModel]="parcelInfo()!.physical.floodZone" (ngModelChange)="onPhysicalFieldChange('floodZone', $event)" /><span class="toggle-text">{{ parcelInfo()!.physical.floodZone ? 'Yes' : 'No' }}</span></label></td></tr>
+              <tr><td class="label">Vegetation</td><td class="value"><input type="text" class="field-input" [ngModel]="parcelInfo()!.physical.vegetationCover" (ngModelChange)="onPhysicalFieldChange('vegetationCover', $event)" placeholder="e.g., Grass, Trees" /></td></tr>
+              <tr><td class="label">Road Access</td><td class="value"><label class="toggle-label"><input type="checkbox" class="field-checkbox" [ngModel]="parcelInfo()!.physical.accessRoad" (ngModelChange)="onPhysicalFieldChange('accessRoad', $event)" /><span class="toggle-text">{{ parcelInfo()!.physical.accessRoad ? 'Yes' : 'No' }}</span></label></td></tr>
+              <tr><td class="label">Utilities</td><td class="value"><input type="text" class="field-input" [ngModel]="parcelInfo()!.physical.utilities" (ngModelChange)="onPhysicalFieldChange('utilities', $event)" placeholder="e.g., Water, Sewer, Electricity" /></td></tr>
+            </table>
+          </div>
+        }
+      </div>
+
+      <!-- ═══ Zoning & Restrictions ═══ -->
+      <div class="collapsible-section">
+        <button class="section-header" [class.expanded]="isSectionExpanded('zoning')" (click)="toggleSection('zoning')">
+          <span class="section-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg></span>
+          <span class="section-title">Zoning & Development Controls</span>
+          <span class="chevron"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        @if (isSectionExpanded('zoning')) {
+          <div class="section-content">
+            <table class="info-table editable-table">
+              <tr><td class="label">Zoning Category</td><td class="value"><select class="field-select" [ngModel]="parcelInfo()!.zoning.zoningCategory" (ngModelChange)="onZoningFieldChange('zoningCategory', $event)">@for (opt of zoningCategoryOptions; track opt) {<option [value]="opt">{{ zoningCategoryDisplayMap[opt] }}</option>}</select></td></tr>
+              <tr><td class="label">Max Height</td><td class="value"><input type="number" class="field-input" [ngModel]="parcelInfo()!.zoning.maxBuildingHeight" (ngModelChange)="onZoningFieldChange('maxBuildingHeight', $event)" min="0" /> m</td></tr>
+              <tr><td class="label">Max Coverage</td><td class="value"><input type="number" class="field-input" [ngModel]="parcelInfo()!.zoning.maxCoverage" (ngModelChange)="onZoningFieldChange('maxCoverage', $event)" min="0" max="100" /> %</td></tr>
+              <tr><td class="label">Max FAR</td><td class="value"><input type="number" class="field-input" [ngModel]="parcelInfo()!.zoning.maxFAR" (ngModelChange)="onZoningFieldChange('maxFAR', $event)" min="0" step="0.1" /></td></tr>
+              <tr><td class="label">Setback Front</td><td class="value"><input type="number" class="field-input" [ngModel]="parcelInfo()!.zoning.setbackFront" (ngModelChange)="onZoningFieldChange('setbackFront', $event)" min="0" /> m</td></tr>
+              <tr><td class="label">Setback Rear</td><td class="value"><input type="number" class="field-input" [ngModel]="parcelInfo()!.zoning.setbackRear" (ngModelChange)="onZoningFieldChange('setbackRear', $event)" min="0" /> m</td></tr>
+              <tr><td class="label">Setback Side</td><td class="value"><input type="number" class="field-input" [ngModel]="parcelInfo()!.zoning.setbackSide" (ngModelChange)="onZoningFieldChange('setbackSide', $event)" min="0" /> m</td></tr>
+              <tr><td class="label">Special Overlay</td><td class="value"><input type="text" class="field-input" [ngModel]="parcelInfo()!.zoning.specialOverlay" (ngModelChange)="onZoningFieldChange('specialOverlay', $event)" placeholder="Heritage, Environmental, etc." /></td></tr>
+            </table>
+          </div>
+        }
+      </div>
+
+      <!-- ═══ Rights, Restrictions & Responsibilities ═══ -->
+      <div class="collapsible-section">
+        <button class="section-header" [class.expanded]="isSectionExpanded('rrr')" (click)="toggleSection('rrr')">
+          <span class="section-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+          <span class="section-title">Rights, Restrictions & Responsibilities</span>
+          <span class="chevron"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        @if (isSectionExpanded('rrr')) {
+          <div class="section-content rrr-section">
+            <div class="rrr-table-wrapper">
+              <table class="rrr-table">
+                <thead><tr><th>Holder</th><th>Type</th><th>Share</th><th></th></tr></thead>
+                <tbody>
+                  @if (parcelInfo()!.rrr.entries.length) {
+                    @for (entry of parcelInfo()!.rrr.entries; track entry.rrrId; let i = $index) {
+                      <tr class="rrr-data-row" (click)="toggleRRRExpand(entry.rrrId)">
+                        <td><input type="text" class="field-input rrr-cell-input" [ngModel]="entry.holder" (ngModelChange)="onRRRFieldChange(i, 'holder', $event)" (click)="$event.stopPropagation()" placeholder="Name" /></td>
+                        <td><select class="field-select rrr-cell-select" [ngModel]="entry.type" (ngModelChange)="onRRRFieldChange(i, 'type', $event)" (click)="$event.stopPropagation()">@for (opt of rightTypeOptions; track opt) {<option [value]="opt">{{ rightTypeDisplayMap[opt] }}</option>}</select></td>
+                        <td><input type="number" class="field-input rrr-cell-input rrr-share-input" [ngModel]="entry.share" (ngModelChange)="onRRRFieldChange(i, 'share', $event)" (click)="$event.stopPropagation()" min="0" max="100" /></td>
+                        <td><button class="rrr-remove-btn" (click)="removeRRREntry(i); $event.stopPropagation()" title="Delete">&times;</button></td>
+                      </tr>
+                      @if (expandedRRRId() === entry.rrrId) {
+                        <tr class="rrr-detail-row">
+                          <td colspan="4">
+                            <div class="rrr-detail-inline">
+                              <div class="rrr-inline-field"><span class="label">RRR ID:</span><input type="text" class="field-input" [ngModel]="entry.rrrId" (ngModelChange)="onRRRFieldChange(i, 'rrrId', $event)" /></div>
+                              <div class="rrr-inline-field"><span class="label">Valid:</span>
+                                <input type="date" class="field-input" [ngModel]="entry.validFrom" (ngModelChange)="onRRRFieldChange(i, 'validFrom', $event)" />
+                                <span>&ndash;</span>
+                                <input type="date" class="field-input" [ngModel]="entry.validTo" (ngModelChange)="onRRRFieldChange(i, 'validTo', $event)" />
+                              </div>
+                              <div class="rrr-inline-field"><span class="label">Document:</span><input type="text" class="field-input" [ngModel]="entry.documentRef" (ngModelChange)="onRRRFieldChange(i, 'documentRef', $event)" placeholder="Deed / Title reference" /></div>
+                            </div>
+                            <div class="rrr-sub-section">
+                              <div class="rrr-sub-header"><span class="rrr-sub-title">Restrictions</span><button class="rrr-add-btn" (click)="addRestriction(i)">+ Add</button></div>
+                              @if (entry.restrictions.length) {
+                                @for (r of entry.restrictions; track r.type; let ri = $index) {
+                                  <div class="rrr-sub-row">
+                                    <select class="field-select rrr-mini-select" [ngModel]="r.type" (ngModelChange)="onRestrictionChange(i, ri, 'type', $event)">@for (opt of restrictionTypeOptions; track opt) {<option [value]="opt">{{ restrictionTypeDisplayMap[opt] }}</option>}</select>
+                                    <input type="text" class="field-input rrr-mini-input" [ngModel]="r.description" (ngModelChange)="onRestrictionChange(i, ri, 'description', $event)" placeholder="Description" />
+                                    <button class="rrr-remove-btn" (click)="removeRestriction(i, ri)">&times;</button>
+                                  </div>
+                                }
+                              } @else { <p class="empty-message">No restrictions</p> }
+                            </div>
+                            <div class="rrr-sub-section">
+                              <div class="rrr-sub-header"><span class="rrr-sub-title">Responsibilities</span><button class="rrr-add-btn" (click)="addResponsibility(i)">+ Add</button></div>
+                              @if (entry.responsibilities.length) {
+                                @for (resp of entry.responsibilities; track resp.type; let rsi = $index) {
+                                  <div class="rrr-sub-row">
+                                    <select class="field-select rrr-mini-select" [ngModel]="resp.type" (ngModelChange)="onResponsibilityChange(i, rsi, 'type', $event)">@for (opt of responsibilityTypeOptions; track opt) {<option [value]="opt">{{ responsibilityTypeDisplayMap[opt] }}</option>}</select>
+                                    <input type="text" class="field-input rrr-mini-input" [ngModel]="resp.description" (ngModelChange)="onResponsibilityChange(i, rsi, 'description', $event)" placeholder="Description" />
+                                    <button class="rrr-remove-btn" (click)="removeResponsibility(i, rsi)">&times;</button>
+                                  </div>
+                                }
+                              } @else { <p class="empty-message">No responsibilities</p> }
+                            </div>
+                          </td>
+                        </tr>
+                      }
+                    }
+                  } @else {
+                    <tr><td colspan="4" class="empty-message">No RRR entries</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            <button class="rrr-add-entry-btn" (click)="addRRREntry()">+ Add Right / Tenure</button>
+          </div>
+        }
+      </div>
+
+      <!-- ═══ Tax & Valuation ═══ -->
+      <div class="collapsible-section">
+        <button class="section-header" [class.expanded]="isSectionExpanded('valuation')" (click)="toggleSection('valuation')">
+          <span class="section-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
+          <span class="section-title">Tax & Valuation</span>
+          <span class="chevron"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        @if (isSectionExpanded('valuation')) {
+          <div class="section-content">
+            <table class="info-table editable-table">
+              <tr><td class="label">Land Value</td><td class="value"><input type="number" class="field-input" [ngModel]="parcelInfo()!.valuation.landValue" (ngModelChange)="onValuationFieldChange('landValue', $event)" min="0" /></td></tr>
+              <tr><td class="label">Market Value</td><td class="value"><input type="number" class="field-input" [ngModel]="parcelInfo()!.valuation.marketValue" (ngModelChange)="onValuationFieldChange('marketValue', $event)" min="0" /></td></tr>
+              <tr><td class="label">Annual Tax</td><td class="value"><input type="number" class="field-input" [ngModel]="parcelInfo()!.valuation.annualTax" (ngModelChange)="onValuationFieldChange('annualTax', $event)" min="0" /></td></tr>
+              <tr><td class="label">Last Assessment</td><td class="value"><input type="date" class="field-input" [ngModel]="parcelInfo()!.valuation.lastAssessmentDate" (ngModelChange)="onValuationFieldChange('lastAssessmentDate', $event)" /></td></tr>
+              <tr><td class="label">Tax Status</td><td class="value"><select class="field-select" [ngModel]="parcelInfo()!.valuation.taxStatus" (ngModelChange)="onValuationFieldChange('taxStatus', $event)"><option value="paid">Paid</option><option value="pending">Pending</option><option value="overdue">Overdue</option></select></td></tr>
+            </table>
+          </div>
+        }
+      </div>
+
+      <!-- ═══ Relationships ═══ -->
+      <div class="collapsible-section">
+        <button class="section-header" [class.expanded]="isSectionExpanded('relationships')" (click)="toggleSection('relationships')">
+          <span class="section-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></span>
+          <span class="section-title">Relationships</span>
+          <span class="chevron"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        @if (isSectionExpanded('relationships')) {
+          <div class="section-content">
+            <table class="info-table editable-table">
+              <tr><td class="label">Buildings on Parcel</td><td class="value read-only">{{ parcelInfo()!.relationships.buildingIds.length ? parcelInfo()!.relationships.buildingIds.join(', ') : 'None' }}</td></tr>
+              <tr><td class="label">Adjacent Parcels</td><td class="value"><input type="text" class="field-input" [ngModel]="parcelInfo()!.relationships.adjacentParcels" (ngModelChange)="onRelationshipsFieldChange('adjacentParcels', $event)" placeholder="Comma-separated parcel IDs" /></td></tr>
+              <tr><td class="label">Parent Parcel</td><td class="value"><input type="text" class="field-input" [ngModel]="parcelInfo()!.relationships.parentParcel" (ngModelChange)="onRelationshipsFieldChange('parentParcel', $event)" placeholder="If subdivided from" /></td></tr>
+              <tr><td class="label">Child Parcels</td><td class="value"><input type="text" class="field-input" [ngModel]="parcelInfo()!.relationships.childParcels" (ngModelChange)="onRelationshipsFieldChange('childParcels', $event)" placeholder="If further subdivided" /></td></tr>
+              <tr><td class="label">Part of Estate</td><td class="value"><input type="text" class="field-input" [ngModel]="parcelInfo()!.relationships.partOfEstate" (ngModelChange)="onRelationshipsFieldChange('partOfEstate', $event)" placeholder="Estate / Complex ID" /></td></tr>
+            </table>
+          </div>
+        }
+      </div>
+
+      <!-- ═══ Metadata & Quality ═══ -->
+      <div class="collapsible-section">
+        <button class="section-header" [class.expanded]="isSectionExpanded('metadata')" (click)="toggleSection('metadata')">
+          <span class="section-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
+          <span class="section-title">Metadata & Quality</span>
+          <span class="chevron"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        @if (isSectionExpanded('metadata')) {
+          <div class="section-content">
+            <table class="info-table editable-table">
+              <tr><td class="label">Quality ID</td><td class="value read-only">{{ parcelInfo()!.metadata.dataQualityId || 'N/A' }}</td></tr>
+              <tr><td class="label">Accuracy Level</td><td class="value"><select class="field-select" [ngModel]="parcelInfo()!.metadata.accuracyLevel" (ngModelChange)="onMetadataFieldChange('accuracyLevel', $event)">@for (opt of accuracyLevelOptions; track opt) {<option [value]="opt">{{ accuracyLevelDisplayMap[opt] }}</option>}</select></td></tr>
+              <tr><td class="label">Survey Method</td><td class="value"><select class="field-select" [ngModel]="parcelInfo()!.metadata.surveyMethod" (ngModelChange)="onMetadataFieldChange('surveyMethod', $event)">@for (opt of surveyMethodOptions; track opt) {<option [value]="opt">{{ surveyMethodDisplayMap[opt] }}</option>}</select></td></tr>
+              <tr><td class="label">Last Updated</td><td class="value read-only">{{ parcelInfo()!.metadata.lastUpdated || 'N/A' }}</td></tr>
+              <tr><td class="label">Responsible Party</td><td class="value"><input type="text" class="field-input" [ngModel]="parcelInfo()!.metadata.responsibleParty" (ngModelChange)="onMetadataFieldChange('responsibleParty', $event)" placeholder="Surveyor / Office" /></td></tr>
+              <tr><td class="label">Source Document</td><td class="value"><input type="text" class="field-input" [ngModel]="parcelInfo()!.metadata.sourceDocument" (ngModelChange)="onMetadataFieldChange('sourceDocument', $event)" placeholder="Survey plan reference" /></td></tr>
+            </table>
+          </div>
+        }
+      </div>
+
+      <!-- ═══ Save / Delete Footer ═══ -->
+      <div class="panel-footer">
+        <button class="footer-btn save-btn" (click)="onSaveParcel()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+            <polyline points="17 21 17 13 7 13 7 21"/>
+            <polyline points="7 3 7 8 15 8"/>
+          </svg>
+          Save Parcel Details
+        </button>
+        <button class="footer-btn delete-btn" (click)="onDeleteParcel()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          </svg>
+          Delete
+        </button>
+      </div>
+    </div>
+  }
+</div>

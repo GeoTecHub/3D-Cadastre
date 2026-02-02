@@ -235,6 +235,55 @@
   border-left: 1px solid rgba(148, 163, 184, 0.1);
   position: relative;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Sidebar Tab Bar */
+.sidebar-tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+  background: rgba(15, 23, 42, 0.6);
+  flex-shrink: 0;
+}
+
+.sidebar-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.7rem 0.75rem;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-bottom: 2px solid transparent;
+}
+
+.sidebar-tab:hover {
+  color: #94a3b8;
+  background: rgba(148, 163, 184, 0.06);
+}
+
+.sidebar-tab.active {
+  color: #e2e8f0;
+  border-bottom-color: #6366f1;
+  background: rgba(79, 70, 229, 0.08);
+}
+
+.sidebar-tab.active svg {
+  color: #a5b4fc;
+}
+
+.sidebar-tab-content {
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
 }
 
 .resize-handle {

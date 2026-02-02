@@ -34,25 +34,6 @@
         <span>Import CityJSON</span>
       </label>
 
-      <button class="toolbar-btn" (click)="openSaveModelDialog()" [disabled]="isSaving() || !cityjson()">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-          <polyline points="17 21 17 13 7 13 7 21"/>
-          <polyline points="7 3 7 8 15 8"/>
-        </svg>
-        <span>{{ isSaving() ? 'Saving...' : 'Save Model' }}</span>
-      </button>
-
-      <button class="toolbar-btn" (click)="startApartmentCreation()" [disabled]="!cityjson()">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="3" width="7" height="7"/>
-          <rect x="14" y="3" width="7" height="7"/>
-          <rect x="14" y="14" width="7" height="7"/>
-          <rect x="3" y="14" width="7" height="7"/>
-        </svg>
-        <span>Create Apartment</span>
-      </button>
-
       <div class="toolbar-divider"></div>
 
       <div class="toolbar-dropdown-wrapper">
@@ -184,33 +165,81 @@
       </div>
     </section>
 
-    <!-- Right Sidebar - Building Info Panel -->
+    <!-- Right Sidebar - Tabbed Info Panel -->
     <aside class="sidebar right-sidebar" [style.width.px]="sidebarWidth()">
       <div class="resize-handle" (mousedown)="onResizeStart($event)"></div>
-      <app-building-info-panel
-        [buildingInfo]="buildingInfo()"
-        [selectedUnitId]="selectedObjectId()"
-        [modelLoaded]="modelLoaded()"
-        [availableRooms]="availableRooms()"
-        [assignedRoomMap]="assignedRoomMap()"
-        [pendingRoomSelection]="pendingRoomSelection()"
-        (unitSelected)="onUnitSelected($event)"
-        (explodeViewRequested)="onExplodeViewRequested()"
-        (summaryChanged)="onSummaryChanged($event)"
-        (rrrChanged)="onRRRChanged($event)"
-        (unitsChanged)="onUnitsChanged($event)"
-        (spatialChanged)="onSpatialChanged($event)"
-        (physicalChanged)="onPhysicalChanged($event)"
-        (relationshipsChanged)="onRelationshipsChanged($event)"
-        (metadataChanged)="onMetadataChanged($event)"
-        (saveModelRequested)="onSaveModelRequested()"
-        (saveBuildingRequested)="onSaveBuildingRequested($event)"
-        (deleteBuildingRequested)="onDeleteBuildingRequested()"
-        (startRoomSelection)="onStartRoomSelection($event)"
-        (finishRoomSelection)="onFinishRoomSelection($event)"
-        (cancelRoomSelection)="onCancelRoomSelection()"
-        (highlightRooms)="onHighlightRooms($event)">
-      </app-building-info-panel>
+
+      <!-- Tab Bar -->
+      <div class="sidebar-tab-bar">
+        <button class="sidebar-tab" [class.active]="activeSidebarTab() === 'building'" (click)="switchSidebarTab('building')">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 21h18"/>
+            <path d="M5 21V7l7-4 7 4v14"/>
+            <rect x="9" y="9" width="2" height="2"/>
+            <rect x="13" y="9" width="2" height="2"/>
+            <rect x="9" y="13" width="2" height="2"/>
+            <rect x="13" y="13" width="2" height="2"/>
+          </svg>
+          <span>Building</span>
+        </button>
+        <button class="sidebar-tab" [class.active]="activeSidebarTab() === 'land'" (click)="switchSidebarTab('land')">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+            <circle cx="12" cy="10" r="3"/>
+          </svg>
+          <span>Land</span>
+        </button>
+      </div>
+
+      <!-- Building Tab Content -->
+      @if (activeSidebarTab() === 'building') {
+        <div class="sidebar-tab-content">
+          <app-building-info-panel
+            [buildingInfo]="buildingInfo()"
+            [selectedUnitId]="selectedObjectId()"
+            [modelLoaded]="modelLoaded()"
+            [availableRooms]="availableRooms()"
+            [assignedRoomMap]="assignedRoomMap()"
+            [pendingRoomSelection]="pendingRoomSelection()"
+            (unitSelected)="onUnitSelected($event)"
+            (explodeViewRequested)="onExplodeViewRequested()"
+            (summaryChanged)="onSummaryChanged($event)"
+            (rrrChanged)="onRRRChanged($event)"
+            (unitsChanged)="onUnitsChanged($event)"
+            (spatialChanged)="onSpatialChanged($event)"
+            (physicalChanged)="onPhysicalChanged($event)"
+            (relationshipsChanged)="onRelationshipsChanged($event)"
+            (metadataChanged)="onMetadataChanged($event)"
+            (saveModelRequested)="onSaveModelRequested()"
+            (saveBuildingRequested)="onSaveBuildingRequested($event)"
+            (deleteBuildingRequested)="onDeleteBuildingRequested()"
+            (startRoomSelection)="onStartRoomSelection($event)"
+            (finishRoomSelection)="onFinishRoomSelection($event)"
+            (cancelRoomSelection)="onCancelRoomSelection()"
+            (highlightRooms)="onHighlightRooms($event)">
+          </app-building-info-panel>
+        </div>
+      }
+
+      <!-- Land Tab Content -->
+      @if (activeSidebarTab() === 'land') {
+        <div class="sidebar-tab-content">
+          <app-land-info-panel
+            [parcelInfo]="parcelInfo()"
+            (identificationChanged)="onParcelIdentificationChanged($event)"
+            (spatialChanged)="onParcelSpatialChanged($event)"
+            (physicalChanged)="onParcelPhysicalChanged($event)"
+            (zoningChanged)="onParcelZoningChanged($event)"
+            (rrrChanged)="onParcelRRRChanged($event)"
+            (valuationChanged)="onParcelValuationChanged($event)"
+            (relationshipsChanged)="onParcelRelationshipsChanged($event)"
+            (metadataChanged)="onParcelMetadataChanged($event)"
+            (saveParcelRequested)="onSaveParcelRequested($event)"
+            (deleteParcelRequested)="onDeleteParcelRequested()"
+            (newParcelRequested)="onNewParcelRequested($event)">
+          </app-land-info-panel>
+        </div>
+      }
     </aside>
   </div>
 
