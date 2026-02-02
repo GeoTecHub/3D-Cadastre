@@ -730,7 +730,7 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
       return;
     }
 
-    const extent = this.geoTransformService.getGeoExtent(data);
+    const extent = await this.geoTransformService.getGeoExtent(data);
     if (!extent) {
       this.osmMapStatus.emit('no-crs');
       return;

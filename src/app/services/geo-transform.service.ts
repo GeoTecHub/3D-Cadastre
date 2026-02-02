@@ -25,14 +25,33 @@ export interface GeoExtent {
 @Injectable({ providedIn: 'root' })
 export class GeoTransformService {
 
+  /** Map of compound / 3D CRS codes to their 2D horizontal base code */
+  private static readonly COMPOUND_TO_2D: Record<number, number> = {
+    7415: 28992,  // Amersfoort / RD New + NAP height → RD New
+    7416: 28992,  // Amersfoort / RD New + MSL NL depth → RD New
+    9286: 28992,  // Amersfoort / RD New + NAP 2022 → RD New
+    4979: 4326,   // WGS84 geographic 3D → WGS84 2D
+    4978: 4326,   // WGS84 geocentric → WGS84 2D
+    3855: 4326,   // EGM2008 height (used with 4326)
+    7409: 25831,  // ETRS89 / UTM zone 31N + EVRF2000 → ETRS89 UTM 31N
+    7410: 25832,  // ETRS89 / UTM zone 32N + EVRF2000 → ETRS89 UTM 32N
+    7411: 25833,  // ETRS89 / UTM zone 33N + EVRF2000 → ETRS89 UTM 33N
+    9518: 3414,   // SVY21 / Singapore TM + SHD → SVY21
+  };
+
   constructor() {
     // Register common cadastral CRS definitions that proj4 doesn't know by default
-    // Dutch RD New
+
+    // Dutch RD New (base for EPSG:7415 compound)
     proj4.defs('EPSG:28992', '+proj=sterea +lat_0=52.1561605555556 +lon_0=5.38763888888889 +k=0.9999079 +x_0=155000 +y_0=463000 +ellps=bessel +towgs84=565.4171,50.3319,465.5524,-0.398957,0.343988,-1.87740,4.0725 +units=m +no_defs');
     // Singapore SVY21
     proj4.defs('EPSG:3414', '+proj=tmerc +lat_0=1.36666666666667 +lon_0=103.833333333333 +k=1 +x_0=28001.642 +y_0=38744.572 +ellps=WGS84 +units=m +no_defs');
     // UTM Zone 33N (common in Europe)
     proj4.defs('EPSG:32633', '+proj=utm +zone=33 +datum=WGS84 +units=m +no_defs');
+    // ETRS89 / UTM zones 31-33 (common across Europe)
+    proj4.defs('EPSG:25831', '+proj=utm +zone=31 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs');
+    proj4.defs('EPSG:25832', '+proj=utm +zone=32 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs');
+    proj4.defs('EPSG:25833', '+proj=utm +zone=33 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs');
   }
 
   /**
@@ -42,9 +61,19 @@ export class GeoTransformService {
    * Returns null if the model uses purely local coordinates and no
    * referenceSystem is specified.
    */
-  getGeoExtent(cityjson: CityJSON): GeoExtent | null {
-    const epsg = this.detectEPSG(cityjson);
+  async getGeoExtent(cityjson: CityJSON): Promise<GeoExtent | null> {
+    let epsg = this.detectEPSG(cityjson);
     if (!epsg) return null;
+
+    // Resolve compound / 3D CRS to their 2D horizontal base
+    const baseEpsg = GeoTransformService.COMPOUND_TO_2D[epsg];
+    if (baseEpsg) {
+      console.info(`GeoTransform: Resolving compound EPSG:${epsg} → EPSG:${baseEpsg}`);
+      epsg = baseEpsg;
+    }
+
+    // Ensure the CRS is registered in proj4
+    await this.ensureCrsDefined(epsg);
 
     // Get transformed vertices bounding box
     const transform = cityjson.transform;
@@ -144,6 +173,33 @@ export class GeoTransformService {
     }
 
     return null;
+  }
+
+  /**
+   * Ensure a CRS definition is registered in proj4.
+   * If not already known, attempts to fetch the proj4 string from epsg.io.
+   */
+  private async ensureCrsDefined(epsg: number): Promise<void> {
+    const key = `EPSG:${epsg}`;
+    // Already registered?
+    try {
+      if (proj4.defs(key)) return;
+    } catch { /* not defined */ }
+
+    // Fetch from epsg.io
+    try {
+      const resp = await fetch(`https://epsg.io/${epsg}.proj4`);
+      if (resp.ok) {
+        const proj4Str = (await resp.text()).trim();
+        if (proj4Str && proj4Str.startsWith('+')) {
+          proj4.defs(key, proj4Str);
+          console.info(`GeoTransform: Dynamically registered ${key} from epsg.io`);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn(`GeoTransform: Failed to fetch CRS definition for ${key} from epsg.io`, err);
+    }
   }
 
   private isValidLonLat(lon: number, lat: number): boolean {
