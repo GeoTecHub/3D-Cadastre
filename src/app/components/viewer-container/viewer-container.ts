@@ -125,7 +125,7 @@ export class ViewerContainer {
     return map;
   });
 
-  private readonly defaultModelUrl = '/lod2_appartment.city.json';
+  private readonly defaultModelUrl = '/building_georef.city.json';
   private readonly isBrowser: boolean;
 
   constructor(
