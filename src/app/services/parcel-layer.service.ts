@@ -102,6 +102,9 @@ export class ParcelLayerService {
 
     const parcelMeshes: ParcelMeshData[] = [];
 
+    // Reset debug counter
+    this.debugLogCount = 0;
+
     // Calculate the reference point in Web Mercator for coordinate offset
     const refMerc = this.geoTransform.lonLatToWebMercator(extent.centerLon, extent.centerLat);
 
@@ -209,11 +212,11 @@ export class ParcelLayerService {
 
     const color = this.getColorForLandUse(properties.landUse);
     const fillMaterial = new THREE.MeshBasicMaterial({
-      color,
+      color: 0xff0000, // DEBUG: Bright red for visibility
       transparent: true,
-      opacity: 0.35,
+      opacity: 0.7,    // DEBUG: Higher opacity
       side: THREE.DoubleSide,
-      depthWrite: false
+      depthWrite: true
     });
 
     const fillMesh = new THREE.Mesh(fillGeom, fillMaterial);
