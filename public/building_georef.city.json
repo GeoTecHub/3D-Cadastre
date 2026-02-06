@@ -1,14 +1,12 @@
 {
   "type": "CityJSON",
-  "version": "1.1",
-  "metadata": {
-    "referenceSystem": "https://www.opengis.net/def/crs/EPSG/0/4326",
-    "geographicalExtent": [80.9905, 6.8300, 0, 80.9915, 6.8310, 15],
-    "identifier": "3D-Cadastre-Building-Bandarawela"
-  },
+  "version": "2.0",
   "transform": {
-    "scale": [0.000001, 0.000001, 0.1],
-    "translate": [80.9905, 6.8300, 0]
+    "scale": [0.001, 0.001, 0.001],
+    "translate": [525383.0, 480924.0, 10.0]
+  },
+  "metadata": {
+    "referenceSystem": "https://www.opengis.net/def/crs/EPSG/0/5235"
   },
   "CityObjects": {
     "building_1": {
