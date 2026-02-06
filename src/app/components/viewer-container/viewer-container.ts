@@ -63,6 +63,13 @@ export class ViewerContainer {
   showOsmMap = signal(false);
   osmMapStatusMsg = signal<string | null>(null);
 
+  // Hybrid OSM layer controls
+  osmHybridMode = signal(true); // Enable hybrid mode by default
+  osmCountryKey = signal('SRI_LANKA'); // Default country
+  showCountryLayer = signal(true); // Show country overview
+  showDetailLayer = signal(true); // Show building detail
+  availableCountries = ['SRI_LANKA', 'INDIA']; // Available country options
+
   // Dialog visibility
   showSaveModelDialog = signal(false);
   showCreateApartmentDialog = signal(false);
@@ -410,10 +417,13 @@ export class ViewerContainer {
         this.osmMapStatusMsg.set('Loading OSM map tiles...');
         break;
       case 'loaded':
-        this.osmMapStatusMsg.set('OSM map loaded');
+        const layerInfo = this.osmHybridMode()
+          ? `(${this.showCountryLayer() ? 'Country' : ''}${this.showCountryLayer() && this.showDetailLayer() ? ' + ' : ''}${this.showDetailLayer() ? 'Detail' : ''} layers)`
+          : '';
+        this.osmMapStatusMsg.set(`OSM map loaded ${layerInfo}`);
         // Auto-clear after 3s
         setTimeout(() => {
-          if (this.osmMapStatusMsg() === 'OSM map loaded') {
+          if (this.osmMapStatusMsg()?.startsWith('OSM map loaded')) {
             this.osmMapStatusMsg.set(null);
           }
         }, 3000);
@@ -424,6 +434,40 @@ export class ViewerContainer {
       case 'error':
         this.osmMapStatusMsg.set('Failed to load OSM tiles.');
         break;
+    }
+  }
+
+  // ─── OSM Hybrid Layer Controls ────────────────────────────
+
+  toggleCountryLayer(): void {
+    this.showCountryLayer.update(v => !v);
+    if (this.ninjaViewer) {
+      this.ninjaViewer.setCountryLayerVisible(this.showCountryLayer());
+    }
+  }
+
+  toggleDetailLayer(): void {
+    this.showDetailLayer.update(v => !v);
+    if (this.ninjaViewer) {
+      this.ninjaViewer.setDetailLayerVisible(this.showDetailLayer());
+    }
+  }
+
+  setOsmCountry(countryKey: string): void {
+    this.osmCountryKey.set(countryKey);
+    // If OSM map is currently showing, reload with new country
+    if (this.showOsmMap()) {
+      this.showOsmMap.set(false);
+      setTimeout(() => this.showOsmMap.set(true), 100);
+    }
+  }
+
+  toggleOsmHybridMode(): void {
+    this.osmHybridMode.update(v => !v);
+    // Reload OSM map with new mode
+    if (this.showOsmMap()) {
+      this.showOsmMap.set(false);
+      setTimeout(() => this.showOsmMap.set(true), 100);
     }
   }
 

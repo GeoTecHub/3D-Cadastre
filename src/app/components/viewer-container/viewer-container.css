@@ -709,6 +709,76 @@
   box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
 }
 
+/* OSM Layer Controls */
+.osm-layer-controls {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 200px;
+  background: rgba(15, 23, 42, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(16px);
+  overflow: hidden;
+  z-index: 200;
+  padding: 0.5rem;
+}
+
+.osm-control-header {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+  margin-bottom: 0.5rem;
+}
+
+.osm-control-header span {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.osm-control-item {
+  padding: 0.4rem 0.75rem;
+}
+
+.osm-control-item label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: #cbd5e1;
+  cursor: pointer;
+}
+
+.osm-control-item input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: #6366f1;
+  cursor: pointer;
+}
+
+.osm-control-item select {
+  width: 100%;
+  margin-top: 0.25rem;
+  padding: 0.35rem 0.5rem;
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 6px;
+  color: #e2e8f0;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.osm-control-item select:focus {
+  outline: none;
+  border-color: #6366f1;
+}
+
+.osm-control-item select option {
+  background: #1e293b;
+  color: #e2e8f0;
+}
+
 /* Responsive */
 @media (max-width: 1400px) {
   .right-sidebar {
