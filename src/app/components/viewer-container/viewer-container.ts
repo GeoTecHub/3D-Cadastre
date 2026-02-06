@@ -18,8 +18,9 @@ import {
   LandParcelInfo, createDefaultLandParcel,
   ParcelIdentification, ParcelSpatial, ParcelPhysical,
   ParcelZoning, ParcelValuation, ParcelRelationships, ParcelMetadata,
-  RRRInfo as LandRRRInfo
+  RRRInfo as LandRRRInfo, LandUse
 } from '../../models/land-parcel.model';
+import { ParcelFeatureCollection } from '../../services/parcel-layer.service';
 
 type SidebarTab = 'building' | 'land';
 
@@ -71,6 +72,10 @@ export class ViewerContainer {
   // Land parcel info
   private _parcelInfoOverride = signal<LandParcelInfo | null>(null);
   parcelInfo = computed<LandParcelInfo | null>(() => this._parcelInfoOverride());
+
+  // Parcel layer data (from backend or sample)
+  parcelsData = signal<ParcelFeatureCollection | null>(null);
+  parcelsEpsg = signal<number>(28992); // Dutch RD New by default
 
   // Resizable sidebar
   sidebarWidth = signal(340);
@@ -566,6 +571,134 @@ export class ViewerContainer {
   onDeleteParcelRequested(): void {
     this._parcelInfoOverride.set(null);
     this.saveStatus.set('Parcel details cleared.');
+  }
+
+  /**
+   * Handle parcel selection from the 3D viewer.
+   * Switches to the Land tab and populates the panel.
+   */
+  onParcelSelected(parcelId: string): void {
+    // Switch to Land tab
+    this.activeSidebarTab.set('land');
+
+    // Find the parcel properties from the parcels data
+    const parcels = this.parcelsData();
+    if (!parcels) return;
+
+    const feature = parcels.features.find(f => f.properties.parcelId === parcelId);
+    if (!feature) return;
+
+    // Create a LandParcelInfo from the feature properties
+    const props = feature.properties;
+    const parcelInfo = createDefaultLandParcel(parcelId);
+
+    // Populate from properties
+    parcelInfo.identification.parcelId = parcelId;
+    parcelInfo.identification.cadastralRef = props.cadastralRef || '';
+    parcelInfo.identification.landUse = (props.landUse as LandUse) || LandUse.RES;
+    parcelInfo.relationships.buildingIds = props.buildingIds || [];
+
+    if (props.area) {
+      parcelInfo.spatial.area = props.area;
+    }
+
+    this._parcelInfoOverride.set(parcelInfo);
+  }
+
+  /**
+   * Load sample parcel polygons for testing (would be replaced by backend API).
+   * Creates a parcel polygon around the building footprint.
+   */
+  loadSampleParcels(): void {
+    const data = this.cityjson();
+    if (!data) return;
+
+    // Get the building footprint extent from vertices
+    const transform = data.transform;
+    let minX = Infinity, minY = Infinity;
+    let maxX = -Infinity, maxY = -Infinity;
+
+    for (const v of data.vertices) {
+      let x = v[0], y = v[1];
+      if (transform) {
+        x = x * transform.scale[0] + transform.translate[0];
+        y = y * transform.scale[1] + transform.translate[1];
+      }
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+    }
+
+    // Create a slightly larger parcel around the building
+    const padding = (maxX - minX) * 0.2;
+    const parcelMinX = minX - padding;
+    const parcelMinY = minY - padding;
+    const parcelMaxX = maxX + padding;
+    const parcelMaxY = maxY + padding;
+
+    // Create GeoJSON FeatureCollection with sample parcels
+    const sampleParcels: ParcelFeatureCollection = {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          properties: {
+            parcelId: 'PARCEL-001',
+            cadastralRef: 'LOT-2024-0001',
+            landUse: LandUse.RES,
+            buildingIds: ['building_1'],
+            area: Math.round((parcelMaxX - parcelMinX) * (parcelMaxY - parcelMinY))
+          },
+          geometry: {
+            type: 'Polygon',
+            coordinates: [[
+              [parcelMinX, parcelMinY],
+              [parcelMaxX, parcelMinY],
+              [parcelMaxX, parcelMaxY],
+              [parcelMinX, parcelMaxY],
+              [parcelMinX, parcelMinY]
+            ]]
+          }
+        },
+        // Add a second adjacent parcel for demonstration
+        {
+          type: 'Feature',
+          properties: {
+            parcelId: 'PARCEL-002',
+            cadastralRef: 'LOT-2024-0002',
+            landUse: LandUse.COM,
+            buildingIds: [],
+            area: Math.round((parcelMaxX - parcelMinX) * (parcelMaxY - parcelMinY) * 0.5)
+          },
+          geometry: {
+            type: 'Polygon',
+            coordinates: [[
+              [parcelMaxX, parcelMinY],
+              [parcelMaxX + padding * 2, parcelMinY],
+              [parcelMaxX + padding * 2, parcelMaxY],
+              [parcelMaxX, parcelMaxY],
+              [parcelMaxX, parcelMinY]
+            ]]
+          }
+        }
+      ]
+    };
+
+    // Detect EPSG from CityJSON
+    const ref = data.metadata?.referenceSystem;
+    if (ref) {
+      const match = ref.match(/EPSG::?(\d+)/i);
+      if (match) {
+        let epsg = parseInt(match[1], 10);
+        // Handle compound CRS
+        if (epsg === 7415) epsg = 28992;
+        this.parcelsEpsg.set(epsg);
+      }
+    }
+
+    this.parcelsData.set(sampleParcels);
+    console.info('Sample parcels loaded:', sampleParcels.features.length);
   }
 
   // ─── Sidebar Resize ──────────────────────────────────────
