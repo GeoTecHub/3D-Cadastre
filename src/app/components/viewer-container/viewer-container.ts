@@ -77,7 +77,7 @@ export class ViewerContainer {
 
   // Parcel layer data (from backend or sample)
   parcelsData = signal<ParcelFeatureCollection | null>(null);
-  parcelsEpsg = signal<number>(28992); // Dutch RD New by default
+  parcelsEpsg = signal<number>(4326); // WGS84 by default (InfoBhoomi uses WGS84)
 
   // Resizable sidebar
   sidebarWidth = signal(340);

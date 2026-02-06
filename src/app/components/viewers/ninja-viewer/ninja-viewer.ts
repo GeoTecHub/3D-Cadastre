@@ -48,7 +48,7 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
   focusObjectId = input<string | null>(null);
   showOsmMap = input<boolean>(false);
   parcelsData = input<ParcelFeatureCollection | null>(null);
-  parcelsEpsg = input<number>(28992); // Default to Dutch RD New
+  parcelsEpsg = input<number>(4326); // Default to WGS84 (InfoBhoomi uses WGS84)
   objectSelected = output<string>();
   apartmentCreated = output<Apartment>();
   osmMapStatus = output<'loading' | 'loaded' | 'no-crs' | 'error'>();
