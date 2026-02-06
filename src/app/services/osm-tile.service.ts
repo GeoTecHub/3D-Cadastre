@@ -22,6 +22,41 @@ export interface OsmGroundPlaneResult {
   metersPerUnit: number;
 }
 
+/** Result of building hybrid OSM layers (country + detail) */
+export interface OsmHybridResult {
+  /** Country-level overview layer */
+  countryLayer: OsmGroundPlaneResult | null;
+  /** Detail layer around the building */
+  detailLayer: OsmGroundPlaneResult | null;
+}
+
+/** Predefined geographic extents */
+export interface CountryExtent {
+  name: string;
+  minLon: number;
+  maxLon: number;
+  minLat: number;
+  maxLat: number;
+}
+
+/** Predefined country extents */
+export const COUNTRY_EXTENTS: Record<string, CountryExtent> = {
+  SRI_LANKA: {
+    name: 'Sri Lanka',
+    minLon: 79.5,
+    maxLon: 82.0,
+    minLat: 5.9,
+    maxLat: 9.9
+  },
+  INDIA: {
+    name: 'India',
+    minLon: 68.0,
+    maxLon: 97.5,
+    minLat: 6.5,
+    maxLat: 37.0
+  }
+};
+
 /**
  * Fetches OpenStreetMap tiles and builds a Three.js ground plane
  * textured with the map imagery.
@@ -49,20 +84,35 @@ export class OsmTileService {
    * @param extent The geographic extent in WGS84
    * @param sceneCenter The Three.js scene center [x, y] (used to offset the plane)
    * @param sceneSizeFactor How large the model appears in the scene (for scaling)
+   * @param options Optional configuration for custom extent and zoom
    * @returns The ground plane group, or null if tiles couldn't be loaded
    */
   async createGroundPlane(
     extent: GeoExtent,
     sceneCenter: THREE.Vector3,
-    sceneSizeFactor: number
+    sceneSizeFactor: number,
+    options?: {
+      /** Override the extent used for tile coverage (uses building extent for positioning) */
+      customExtent?: GeoExtent;
+      /** Override the zoom level */
+      zoomOverride?: number;
+      /** Z offset for the ground plane (default: -0.1) */
+      zOffset?: number;
+      /** Tile padding around the extent (default: 2) */
+      padding?: number;
+    }
   ): Promise<OsmGroundPlaneResult | null> {
+    // Use custom extent for tile coverage if provided, otherwise use building extent
+    const tileExtent = options?.customExtent || extent;
+
     // Determine an appropriate zoom level based on extent size
-    const zoom = this.calculateZoom(extent);
-    const padding = 2; // extra tiles around the building
+    const zoom = options?.zoomOverride ?? this.calculateZoom(tileExtent);
+    const padding = options?.padding ?? 2; // extra tiles around the extent
+    const zOffset = options?.zOffset ?? -0.1;
 
     // Get tile range covering the extent + padding
-    const minTile = this.lonLatToTile(extent.minLon, extent.maxLat, zoom); // top-left
-    const maxTile = this.lonLatToTile(extent.maxLon, extent.minLat, zoom); // bottom-right
+    const minTile = this.lonLatToTile(tileExtent.minLon, tileExtent.maxLat, zoom); // top-left
+    const maxTile = this.lonLatToTile(tileExtent.maxLon, tileExtent.minLat, zoom); // bottom-right
 
     const startX = minTile.x - padding;
     const endX = maxTile.x + padding;
@@ -135,7 +185,7 @@ export class OsmTileService {
     group.position.set(
       sceneCenter.x,
       sceneCenter.y,
-      sceneCenter.z - 0.1 // Slightly below to avoid z-fighting with ground surfaces
+      sceneCenter.z + zOffset // Offset to avoid z-fighting with ground surfaces
     );
 
     // Fine-tune: offset by the fractional part of the center tile
@@ -151,6 +201,86 @@ export class OsmTileService {
       centerX: centerMX,
       centerY: centerMY,
       metersPerUnit: 1 / sceneToMeterRatio
+    };
+  }
+
+  /**
+   * Create hybrid OSM layers with both country overview and building detail.
+   * The country layer provides geographic context while the detail layer shows
+   * street-level information around the building.
+   *
+   * @param buildingExtent The building's geographic extent in WGS84
+   * @param countryExtent The country's geographic extent for the overview layer
+   * @param sceneCenter The Three.js scene center
+   * @param sceneSizeFactor How large the model appears in the scene
+   * @returns Both country and detail layers
+   */
+  async createHybridLayers(
+    buildingExtent: GeoExtent,
+    countryExtent: CountryExtent,
+    sceneCenter: THREE.Vector3,
+    sceneSizeFactor: number
+  ): Promise<OsmHybridResult> {
+    // Create the country overview extent
+    const countryGeoExtent: GeoExtent = {
+      minLon: countryExtent.minLon,
+      maxLon: countryExtent.maxLon,
+      minLat: countryExtent.minLat,
+      maxLat: countryExtent.maxLat,
+      centerLon: (countryExtent.minLon + countryExtent.maxLon) / 2,
+      centerLat: (countryExtent.minLat + countryExtent.maxLat) / 2,
+      epsg: 4326, // WGS84 for country extents
+      crsExplicit: true
+    };
+
+    // Calculate appropriate zoom levels
+    const countryZoom = this.calculateZoom(countryGeoExtent);
+    const detailZoom = this.calculateZoom(buildingExtent);
+
+    console.log(`[OSM Hybrid] Country zoom: ${countryZoom}, Detail zoom: ${detailZoom}`);
+    console.log(`[OSM Hybrid] Building center: ${buildingExtent.centerLon}, ${buildingExtent.centerLat}`);
+
+    // Create both layers in parallel
+    const [countryLayer, detailLayer] = await Promise.all([
+      // Country layer - lower zoom, covers whole country, positioned slightly lower
+      this.createGroundPlane(buildingExtent, sceneCenter, sceneSizeFactor, {
+        customExtent: countryGeoExtent,
+        zoomOverride: Math.min(countryZoom, 8), // Cap at zoom 8 for country view
+        zOffset: -0.2, // Below detail layer
+        padding: 1
+      }),
+      // Detail layer - higher zoom, around building, positioned above country layer
+      this.createGroundPlane(buildingExtent, sceneCenter, sceneSizeFactor, {
+        zoomOverride: Math.max(detailZoom, 16), // At least zoom 16 for street detail
+        zOffset: -0.1, // Above country layer
+        padding: 3 // More padding for detail view
+      })
+    ]);
+
+    // Name the groups for easy identification
+    if (countryLayer?.group) {
+      countryLayer.group.name = 'osm-country-layer';
+    }
+    if (detailLayer?.group) {
+      detailLayer.group.name = 'osm-detail-layer';
+    }
+
+    return { countryLayer, detailLayer };
+  }
+
+  /**
+   * Convert a CountryExtent to GeoExtent format
+   */
+  countryToGeoExtent(country: CountryExtent): GeoExtent {
+    return {
+      minLon: country.minLon,
+      maxLon: country.maxLon,
+      minLat: country.minLat,
+      maxLat: country.maxLat,
+      centerLon: (country.minLon + country.maxLon) / 2,
+      centerLat: (country.minLat + country.maxLat) / 2,
+      epsg: 4326, // WGS84 for country extents
+      crsExplicit: true
     };
   }
 
