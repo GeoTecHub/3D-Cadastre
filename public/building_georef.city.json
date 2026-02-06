@@ -3,12 +3,12 @@
   "version": "1.1",
   "metadata": {
     "referenceSystem": "https://www.opengis.net/def/crs/EPSG/0/4326",
-    "geographicalExtent": [77.5946, 12.9716, 0, 77.5949, 12.9719, 15],
-    "identifier": "3D-Cadastre-Building-Bangalore"
+    "geographicalExtent": [79.8608, 6.9268, 0, 79.8615, 6.9275, 15],
+    "identifier": "3D-Cadastre-Building-SriLanka"
   },
   "transform": {
     "scale": [0.000001, 0.000001, 0.1],
-    "translate": [77.5946, 12.9716, 0]
+    "translate": [79.8608, 6.9268, 0]
   },
   "CityObjects": {
     "building_1": {
