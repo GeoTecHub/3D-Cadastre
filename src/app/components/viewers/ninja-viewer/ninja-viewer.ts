@@ -842,34 +842,60 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     }
 
     try {
-      // Calculate scene parameters
+      // Calculate scene parameters (matching OSM tile service approach)
       const box = new THREE.Box3().setFromObject(this.cityModel);
       const center = box.getCenter(new THREE.Vector3());
       const size = box.getSize(new THREE.Vector3());
       const maxDim = Math.max(size.x, size.y, 1);
 
-      // Calculate real-world extent size in meters
-      const extentWidthM = this.geoTransform.lonLatToWebMercator(extent.maxLon, extent.centerLat)[0]
-                         - this.geoTransform.lonLatToWebMercator(extent.minLon, extent.centerLat)[0];
-      const sceneSizeFactor = maxDim / Math.max(extentWidthM, 1);
+      // Calculate real-world extent in Web Mercator
+      const [minMX, minMY] = this.geoTransform.lonLatToWebMercator(extent.minLon, extent.minLat);
+      const [maxMX, maxMY] = this.geoTransform.lonLatToWebMercator(extent.maxLon, extent.maxLat);
+      const realWidthMeters = Math.abs(maxMX - minMX);
+      const realHeightMeters = Math.abs(maxMY - minMY);
+      const realMaxDim = Math.max(realWidthMeters, realHeightMeters, 1);
+
+      // Scene-to-meter ratio (same as OSM tile service)
+      const sceneToMeterRatio = maxDim / realMaxDim;
 
       // Position parcels slightly above ground (to avoid z-fighting with OSM tiles)
-      this.parcelGroundZ = box.min.z + 0.05;
+      this.parcelGroundZ = box.min.z + 0.1;
 
       const sceneCenter = new THREE.Vector3(center.x, center.y, this.parcelGroundZ);
+
+      console.info('Parcel layer params:', {
+        sceneCenter: sceneCenter.toArray(),
+        sceneToMeterRatio,
+        realMaxDim,
+        maxDim,
+        parcelsEpsg: this.parcelsEpsg(),
+        extent: { minLon: extent.minLon, maxLon: extent.maxLon, minLat: extent.minLat, maxLat: extent.maxLat }
+      });
+
+      // Ensure the parcel CRS is registered in proj4
+      await this.geoTransformService.ensureCrsDefined(this.parcelsEpsg());
 
       this.parcelLayerResult = this.parcelLayerService.createParcelLayer(
         parcels,
         this.parcelsEpsg(),
         extent,
         sceneCenter,
-        sceneSizeFactor,
+        sceneToMeterRatio,
         this.parcelGroundZ
       );
 
       if (this.parcelLayerResult) {
         this.scene.add(this.parcelLayerResult.group);
         console.info(`Parcel layer loaded: ${this.parcelLayerResult.parcels.length} parcels`);
+
+        // Log first parcel position for debugging
+        if (this.parcelLayerResult.parcels.length > 0) {
+          const firstParcel = this.parcelLayerResult.parcels[0];
+          const pos = firstParcel.fillMesh.geometry.getAttribute('position');
+          if (pos && pos.count > 0) {
+            console.info('First parcel vertex:', pos.getX(0), pos.getY(0), pos.getZ(0));
+          }
+        }
       }
     } catch (err) {
       console.warn('Failed to load parcel layer:', err);

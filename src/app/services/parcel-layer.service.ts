@@ -102,8 +102,20 @@ export class ParcelLayerService {
 
     const parcelMeshes: ParcelMeshData[] = [];
 
+    // Reset debug counter
+    this.debugLogCount = 0;
+
     // Calculate the reference point in Web Mercator for coordinate offset
     const refMerc = this.geoTransform.lonLatToWebMercator(extent.centerLon, extent.centerLat);
+
+    console.info('ParcelLayerService: Creating layer', {
+      numFeatures: features.length,
+      srcEpsg,
+      refMerc,
+      sceneCenter: [sceneCenter.x, sceneCenter.y, sceneCenter.z],
+      sceneSizeFactor,
+      groundZ
+    });
 
     for (const feature of features) {
       try {
@@ -119,6 +131,10 @@ export class ParcelLayerService {
           group.add(meshData.fillMesh);
           group.add(meshData.strokeLine);
           parcelMeshes.push(meshData);
+          console.info(`ParcelLayerService: Created parcel ${feature.properties?.parcelId}`, {
+            fillVertexCount: meshData.fillMesh.geometry.getAttribute('position')?.count,
+            strokeVertexCount: meshData.strokeLine.geometry.getAttribute('position')?.count
+          });
         }
       } catch (err) {
         console.warn(`Failed to create mesh for parcel ${feature.properties?.parcelId}:`, err);
@@ -196,11 +212,11 @@ export class ParcelLayerService {
 
     const color = this.getColorForLandUse(properties.landUse);
     const fillMaterial = new THREE.MeshBasicMaterial({
-      color,
+      color: 0xff0000, // DEBUG: Bright red for visibility
       transparent: true,
-      opacity: 0.35,
+      opacity: 0.7,    // DEBUG: Higher opacity
       side: THREE.DoubleSide,
-      depthWrite: false
+      depthWrite: true
     });
 
     const fillMesh = new THREE.Mesh(fillGeom, fillMaterial);
@@ -230,6 +246,8 @@ export class ParcelLayerService {
     };
   }
 
+  private debugLogCount = 0;
+
   /**
    * Transform a coordinate from source CRS to scene coordinates.
    */
@@ -252,6 +270,20 @@ export class ParcelLayerService {
     // Scale to scene units and offset to scene center
     const sceneX = sceneCenter.x + dx * sceneSizeFactor;
     const sceneY = sceneCenter.y + dy * sceneSizeFactor;
+
+    // Debug log first few coordinates
+    if (this.debugLogCount < 5) {
+      console.info('transformToScene:', {
+        input: [x, y],
+        srcEpsg,
+        merc,
+        refMerc,
+        delta: [dx, dy],
+        sceneSizeFactor,
+        output: [sceneX, sceneY]
+      });
+      this.debugLogCount++;
+    }
 
     return [sceneX, sceneY];
   }

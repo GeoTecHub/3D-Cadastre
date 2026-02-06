@@ -21,6 +21,7 @@ import {
   RRRInfo as LandRRRInfo, LandUse
 } from '../../models/land-parcel.model';
 import { ParcelFeatureCollection } from '../../services/parcel-layer.service';
+import { ParcelApiService } from '../../services/parcel-api.service';
 
 type SidebarTab = 'building' | 'land';
 
@@ -36,6 +37,7 @@ type ViewerType = 'ninja' | 'threejs';
 export class ViewerContainer {
   private readonly cityjsonService = inject(CityjsonService);
   private readonly backendService = inject(BackendService);
+  private readonly parcelApiService = inject(ParcelApiService);
   private readonly ngZone = inject(NgZone);
 
   @ViewChild(NinjaViewer) ninjaViewer!: NinjaViewer;
@@ -698,7 +700,76 @@ export class ViewerContainer {
     }
 
     this.parcelsData.set(sampleParcels);
-    console.info('Sample parcels loaded:', sampleParcels.features.length);
+    console.info('Sample parcels loaded:', {
+      count: sampleParcels.features.length,
+      epsg: this.parcelsEpsg(),
+      firstParcelBounds: {
+        minX: parcelMinX,
+        minY: parcelMinY,
+        maxX: parcelMaxX,
+        maxY: parcelMaxY
+      }
+    });
+  }
+
+  /**
+   * Load parcels from the InfoBhoomi backend API.
+   * Requires authentication token.
+   */
+  loadParcelsFromBackend(authToken: string, srcEpsg: number = 4326): void {
+    this.isLoading.set(true);
+    this.loadError.set(null);
+
+    this.parcelApiService.fetchParcels('/user/survey_rep_data_user/', authToken)
+      .subscribe({
+        next: (parcels) => {
+          this.parcelsEpsg.set(srcEpsg);
+          this.parcelsData.set(parcels);
+          console.info('Parcels loaded from backend:', {
+            count: parcels.features.length,
+            epsg: srcEpsg
+          });
+          this.isLoading.set(false);
+        },
+        error: (err) => {
+          console.error('Failed to load parcels from backend:', err);
+          this.loadError.set('Failed to load parcels from backend');
+          this.isLoading.set(false);
+        }
+      });
+  }
+
+  /**
+   * Load parcels from a local JSON file.
+   * Use this when the API is not directly accessible.
+   */
+  loadParcelsFromFile(filePath: string = '/parcels.json', srcEpsg: number = 4326): void {
+    this.isLoading.set(true);
+    this.loadError.set(null);
+
+    this.parcelApiService.loadParcelsFromFile(filePath)
+      .subscribe({
+        next: (parcels) => {
+          this.parcelsEpsg.set(srcEpsg);
+          this.parcelsData.set(parcels);
+          console.info('Parcels loaded from file:', {
+            count: parcels.features.length,
+            epsg: srcEpsg,
+            filePath
+          });
+          this.isLoading.set(false);
+
+          // Auto-show OSM map when parcels are loaded
+          if (!this.showOsmMap()) {
+            this.showOsmMap.set(true);
+          }
+        },
+        error: (err) => {
+          console.error('Failed to load parcels from file:', err);
+          this.loadError.set('Failed to load parcels from file');
+          this.isLoading.set(false);
+        }
+      });
   }
 
   // ─── Sidebar Resize ──────────────────────────────────────
