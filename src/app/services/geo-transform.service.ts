@@ -179,7 +179,7 @@ export class GeoTransformService {
    * Ensure a CRS definition is registered in proj4.
    * If not already known, attempts to fetch the proj4 string from epsg.io.
    */
-  private async ensureCrsDefined(epsg: number): Promise<void> {
+  async ensureCrsDefined(epsg: number): Promise<void> {
     const key = `EPSG:${epsg}`;
     // Already registered?
     try {

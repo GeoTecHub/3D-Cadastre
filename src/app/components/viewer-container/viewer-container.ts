@@ -698,7 +698,16 @@ export class ViewerContainer {
     }
 
     this.parcelsData.set(sampleParcels);
-    console.info('Sample parcels loaded:', sampleParcels.features.length);
+    console.info('Sample parcels loaded:', {
+      count: sampleParcels.features.length,
+      epsg: this.parcelsEpsg(),
+      firstParcelBounds: {
+        minX: parcelMinX,
+        minY: parcelMinY,
+        maxX: parcelMaxX,
+        maxY: parcelMaxY
+      }
+    });
   }
 
   // ─── Sidebar Resize ──────────────────────────────────────
