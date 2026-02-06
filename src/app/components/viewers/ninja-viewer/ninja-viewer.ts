@@ -11,6 +11,7 @@ import { CityjsonService } from 'src/app/services/cityjson';
 import { Apartment } from 'src/app/services/cityjson.model';
 import { GeoTransformService } from 'src/app/services/geo-transform.service';
 import { OsmTileService } from 'src/app/services/osm-tile.service';
+import { ParcelLayerService, ParcelFeatureCollection, ParcelMeshData, ParcelLayerResult } from 'src/app/services/parcel-layer.service';
 import { toSignal } from '@angular/core/rxjs-interop';
 
 @Component({
@@ -46,12 +47,16 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
   // --- MODERN SIGNALS ---
   focusObjectId = input<string | null>(null);
   showOsmMap = input<boolean>(false);
+  parcelsData = input<ParcelFeatureCollection | null>(null);
+  parcelsEpsg = input<number>(28992); // Default to Dutch RD New
   objectSelected = output<string>();
   apartmentCreated = output<Apartment>();
   osmMapStatus = output<'loading' | 'loaded' | 'no-crs' | 'error'>();
+  parcelSelected = output<string>();
   private cityjsonService = inject(CityjsonService);
   private geoTransformService = inject(GeoTransformService);
   private osmTileService = inject(OsmTileService);
+  private parcelLayerService = inject(ParcelLayerService);
   // Convert Service Observable to Signal
   cityData = toSignal(this.cityjsonService.cityjsonData$);
 
@@ -85,6 +90,11 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
   // OSM ground plane
   private osmGroup: THREE.Group | null = null;
   private osmLoading = false;
+
+  // Parcel layer
+  private parcelLayerResult: ParcelLayerResult | null = null;
+  private selectedParcelId: string | null = null;
+  private parcelGroundZ = 0;
 
   // Explode view state
   private isExploded = false;
@@ -141,7 +151,19 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
       });
     });
 
-    // 3. React to Input Selection Changes
+    // 3. React to parcels data changes
+    effect(() => {
+      const parcels = this.parcelsData();
+      untracked(() => {
+        if (parcels && parcels.features.length > 0) {
+          this.loadParcelLayer();
+        } else {
+          this.removeParcelLayer();
+        }
+      });
+    });
+
+    // 4. React to Input Selection Changes
     effect(() => {
       const id = this.focusObjectId();
       untracked(() => {
@@ -243,6 +265,7 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     }
     this.meshLookup.clear();
     this.removeOsmGroundPlane();
+    this.removeParcelLayer();
     this.clearSelection(true);
     this.clearHover();
   }
@@ -436,16 +459,29 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
   };
 
   private pickObject(event: PointerEvent): void {
-    if (!this.cityModel || !this.camera || !this.renderer) return;
+    if (!this.camera || !this.renderer) return;
 
     // 1. Setup Raycaster
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+
+    // 2. Check parcel layer first (if visible)
+    if (this.parcelLayerResult) {
+      const parcelHit = this.pickParcel();
+      if (parcelHit) {
+        this.highlightParcelById(parcelHit);
+        this.parcelSelected.emit(parcelHit);
+        return;
+      }
+    }
+
+    // 3. Check city model
+    if (!this.cityModel) return;
 
     this.cityModel.updateWorldMatrix(true, true);
-    this.raycaster.setFromCamera(this.pointer, this.camera);
-    
+
     // Get ALL intersections, sorted by distance (closest first)
     const intersections = this.raycaster.intersectObject(this.cityModel, true);
 
@@ -785,6 +821,117 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
 
     this.scene.remove(this.osmGroup);
     this.osmGroup = null;
+  }
+
+  // ─── Parcel Layer ───────────────────────────────────────────
+
+  private async loadParcelLayer(): Promise<void> {
+    const parcels = this.parcelsData();
+    if (!parcels || !this.cityModel) return;
+
+    // Remove existing layer first
+    this.removeParcelLayer();
+
+    const data = this.cityData();
+    if (!data) return;
+
+    const extent = await this.geoTransformService.getGeoExtent(data);
+    if (!extent) {
+      console.warn('Cannot load parcel layer: no valid CRS extent');
+      return;
+    }
+
+    try {
+      // Calculate scene parameters
+      const box = new THREE.Box3().setFromObject(this.cityModel);
+      const center = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, 1);
+
+      // Calculate real-world extent size in meters
+      const extentWidthM = this.geoTransform.lonLatToWebMercator(extent.maxLon, extent.centerLat)[0]
+                         - this.geoTransform.lonLatToWebMercator(extent.minLon, extent.centerLat)[0];
+      const sceneSizeFactor = maxDim / Math.max(extentWidthM, 1);
+
+      // Position parcels slightly above ground (to avoid z-fighting with OSM tiles)
+      this.parcelGroundZ = box.min.z + 0.05;
+
+      const sceneCenter = new THREE.Vector3(center.x, center.y, this.parcelGroundZ);
+
+      this.parcelLayerResult = this.parcelLayerService.createParcelLayer(
+        parcels,
+        this.parcelsEpsg(),
+        extent,
+        sceneCenter,
+        sceneSizeFactor,
+        this.parcelGroundZ
+      );
+
+      if (this.parcelLayerResult) {
+        this.scene.add(this.parcelLayerResult.group);
+        console.info(`Parcel layer loaded: ${this.parcelLayerResult.parcels.length} parcels`);
+      }
+    } catch (err) {
+      console.warn('Failed to load parcel layer:', err);
+    }
+  }
+
+  private removeParcelLayer(): void {
+    if (!this.parcelLayerResult) return;
+
+    this.parcelLayerService.disposeParcelLayer(this.parcelLayerResult);
+    this.scene.remove(this.parcelLayerResult.group);
+    this.parcelLayerResult = null;
+    this.selectedParcelId = null;
+  }
+
+  /**
+   * Highlight a specific parcel by ID (called from outside).
+   */
+  public highlightParcelById(parcelId: string | null): void {
+    if (!this.parcelLayerResult) return;
+
+    // Clear previous highlight
+    if (this.selectedParcelId) {
+      const prevMesh = this.parcelLayerResult.parcels.find(p => p.parcelId === this.selectedParcelId);
+      if (prevMesh) {
+        this.parcelLayerService.highlightParcel(prevMesh, false);
+      }
+    }
+
+    this.selectedParcelId = parcelId;
+
+    // Apply new highlight
+    if (parcelId) {
+      const meshData = this.parcelLayerResult.parcels.find(p => p.parcelId === parcelId);
+      if (meshData) {
+        this.parcelLayerService.highlightParcel(meshData, true);
+      }
+    }
+  }
+
+  private get geoTransform(): GeoTransformService {
+    return this.geoTransformService;
+  }
+
+  /**
+   * Check if raycaster hits a parcel polygon. Returns parcelId or null.
+   */
+  private pickParcel(): string | null {
+    if (!this.parcelLayerResult) return null;
+
+    const intersections = this.raycaster.intersectObject(this.parcelLayerResult.group, true);
+    if (intersections.length === 0) return null;
+
+    // Find the first hit that's a parcel fill mesh
+    for (const hit of intersections) {
+      const userData = hit.object.userData;
+      if (userData?.['type'] === 'parcel-fill' && userData?.['parcelId']) {
+        return userData['parcelId'];
+      }
+    }
+
+    return null;
   }
 
   // ─── Highlight Rooms (for unit-click in panel) ─────────────
