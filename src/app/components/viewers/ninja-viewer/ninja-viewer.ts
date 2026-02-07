@@ -13,6 +13,7 @@ import { Apartment } from 'src/app/services/cityjson.model';
 import { GeoTransformService, GeoExtent } from 'src/app/services/geo-transform.service';
 import { OsmTileService } from 'src/app/services/osm-tile.service';
 import { ParcelLayerService, ParcelFeatureCollection, ParcelMeshData, ParcelLayerResult } from 'src/app/services/parcel-layer.service';
+import { CadastralPolygonService, CadastralFeatureCollection, CadastralLayerResult, CadastralPolygonData } from 'src/app/services/cadastral-polygon.service';
 import { toSignal } from '@angular/core/rxjs-interop';
 
 @Component({
@@ -58,6 +59,7 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
   private geoTransformService = inject(GeoTransformService);
   private osmTileService = inject(OsmTileService);
   private parcelLayerService = inject(ParcelLayerService);
+  private cadastralPolygonService = inject(CadastralPolygonService);
   // Convert Service Observable to Signal
   cityData = toSignal(this.cityjsonService.cityjsonData$);
 
@@ -92,10 +94,15 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
   private osmGroup: THREE.Group | null = null;
   private osmLoading = false;
 
-  // Parcel layer
+  // Parcel layer (old triangulated mesh approach)
   private parcelLayerResult: ParcelLayerResult | null = null;
   private selectedParcelId: string | null = null;
   private parcelGroundZ = 0;
+
+  // Cadastral polygon layer (new clean polygon approach)
+  private cadastralLayerResult: CadastralLayerResult | null = null;
+  private selectedCadastralId: string | null = null;
+  private useCadastralPolygons = true; // Use new approach by default
 
   // Explode view state
   private isExploded = false;
@@ -152,13 +159,18 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
       });
     });
 
-    // 3. React to parcels data changes
+    // 3. React to parcels data changes - use new cadastral polygon approach
     effect(() => {
       const parcels = this.parcelsData();
       untracked(() => {
         if (parcels && parcels.features.length > 0) {
-          this.loadParcelLayer();
+          if (this.useCadastralPolygons) {
+            this.loadCadastralPolygons();
+          } else {
+            this.loadParcelLayer();
+          }
         } else {
+          this.removeCadastralPolygons();
           this.removeParcelLayer();
         }
       });
@@ -267,6 +279,7 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     this.meshLookup.clear();
     this.removeOsmGroundPlane();
     this.removeParcelLayer();
+    this.removeCadastralPolygons();
     this.clearSelection(true);
     this.clearHover();
   }
@@ -469,7 +482,17 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
     this.raycaster.setFromCamera(this.pointer, this.camera);
 
-    // 2. Check parcel layer first (if visible)
+    // 2. Check cadastral polygon layer first (new approach)
+    if (this.cadastralLayerResult) {
+      const cadastralHit = this.pickCadastralPolygon();
+      if (cadastralHit) {
+        this.highlightCadastralById(cadastralHit);
+        this.parcelSelected.emit(cadastralHit);
+        return;
+      }
+    }
+
+    // 2b. Check old parcel layer (legacy approach)
     if (this.parcelLayerResult) {
       const parcelHit = this.pickParcel();
       if (parcelHit) {
@@ -1058,6 +1081,238 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     this.scene.remove(this.parcelLayerResult.group);
     this.parcelLayerResult = null;
     this.selectedParcelId = null;
+  }
+
+  // ─── Cadastral Polygon Layer (New Clean Approach) ───────────────
+
+  /**
+   * Load cadastral polygons using the new CadastralPolygonService.
+   *
+   * This approach displays parcel boundaries as EXACT legal polygons,
+   * without any mesh triangulation that could distort boundaries.
+   * Polygons are rendered directly on top of OSM tiles.
+   *
+   * Supports two modes:
+   * 1. Standalone: Parcels displayed centered at origin with OSM background
+   * 2. With Building: Parcels positioned relative to the building model
+   */
+  private async loadCadastralPolygons(): Promise<void> {
+    const parcels = this.parcelsData();
+    if (!parcels || parcels.features.length === 0) return;
+
+    // Remove existing layers
+    this.removeCadastralPolygons();
+    this.removeParcelLayer();
+
+    try {
+      // Convert to cadastral feature collection
+      const cadastralParcels = parcels as unknown as CadastralFeatureCollection;
+
+      // Calculate extent from parcel data
+      const extent = this.cadastralPolygonService.calculateExtent(cadastralParcels);
+      if (!extent) {
+        console.warn('Cannot load cadastral polygons: no valid extent');
+        return;
+      }
+
+      // Calculate parcel dimensions in meters
+      const [minMX, minMY] = this.geoTransform.lonLatToWebMercator(extent.minLon, extent.minLat);
+      const [maxMX, maxMY] = this.geoTransform.lonLatToWebMercator(extent.maxLon, extent.maxLat);
+      const parcelWidthMeters = Math.abs(maxMX - minMX);
+      const parcelHeightMeters = Math.abs(maxMY - minMY);
+      const parcelMaxDimMeters = Math.max(parcelWidthMeters, parcelHeightMeters, 1);
+
+      let sceneCenter: THREE.Vector3;
+      let sceneScale: number;
+      let elevationAboveGround: number;
+
+      // Check if we have a building model loaded
+      if (this.cityModel) {
+        // Mode: Overlay on building
+        const box = new THREE.Box3().setFromObject(this.cityModel);
+        const buildingCenter = box.getCenter(new THREE.Vector3());
+        const buildingSize = box.getSize(new THREE.Vector3());
+        const buildingMaxDim = Math.max(buildingSize.x, buildingSize.y, 1);
+
+        // Scale parcels to fit around building (2x building size)
+        const targetSceneSize = buildingMaxDim * 2;
+        sceneScale = targetSceneSize / parcelMaxDimMeters;
+
+        // Center parcels around building
+        sceneCenter = new THREE.Vector3(buildingCenter.x, buildingCenter.y, box.min.z);
+
+        // Elevation: just above building ground level
+        elevationAboveGround = box.min.z + 0.2;
+      } else {
+        // Mode: Standalone parcel viewing
+        const targetSceneSize = 200; // Scene units
+        sceneScale = targetSceneSize / parcelMaxDimMeters;
+        sceneCenter = new THREE.Vector3(0, 0, 0);
+        elevationAboveGround = 0.5;
+      }
+
+      console.info('Loading cadastral polygons:', {
+        mode: this.cityModel ? 'overlay' : 'standalone',
+        parcelCount: cadastralParcels.features.length,
+        extent: {
+          center: [extent.centerLon, extent.centerLat],
+          size: [parcelWidthMeters, parcelHeightMeters]
+        },
+        sceneScale,
+        elevationAboveGround
+      });
+
+      // Create the cadastral layer
+      this.cadastralLayerResult = this.cadastralPolygonService.createCadastralLayer(
+        cadastralParcels,
+        {
+          showFills: true,
+          fillOpacity: 0.5,
+          boundaryWidth: 3,
+          elevationAboveGround
+        },
+        {
+          extent,
+          sceneCenter,
+          sceneScale
+        }
+      );
+
+      if (this.cadastralLayerResult) {
+        this.scene.add(this.cadastralLayerResult.group);
+        console.info(`Cadastral layer loaded: ${this.cadastralLayerResult.polygons.length} polygons`);
+
+        // Fit camera to show all parcels (only in standalone mode)
+        if (!this.cityModel) {
+          this.fitCameraToCadastralLayer();
+        }
+
+        // Load OSM tiles as ground plane under the parcels
+        await this.loadOsmForCadastralExtent(extent, sceneCenter, sceneScale);
+      }
+    } catch (err) {
+      console.error('Failed to load cadastral polygons:', err);
+    }
+  }
+
+  /**
+   * Fit camera to show all cadastral polygons.
+   */
+  private fitCameraToCadastralLayer(): void {
+    if (!this.cadastralLayerResult || !this.camera || !this.controls) return;
+
+    const box = new THREE.Box3().setFromObject(this.cadastralLayerResult.group);
+    if (box.isEmpty()) return;
+
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z, 1);
+    const distance = maxDim * 1.5;
+
+    // Position camera looking down at parcels (bird's eye view)
+    this.camera.position.set(center.x, center.y - distance * 0.3, distance);
+    this.camera.lookAt(center);
+    this.camera.updateProjectionMatrix();
+
+    this.controls.target.copy(center);
+    this.controls.maxDistance = distance * 10;
+    this.controls.minDistance = maxDim * 0.1;
+    this.controls.update();
+  }
+
+  /**
+   * Load OSM ground tiles for the cadastral extent.
+   */
+  private async loadOsmForCadastralExtent(
+    extent: GeoExtent,
+    sceneCenter: THREE.Vector3,
+    sceneScale: number
+  ): Promise<void> {
+    // Remove existing OSM
+    this.removeOsmGroundPlane();
+
+    try {
+      // Calculate the scene size in meters for OSM tile sizing
+      const [minMX, minMY] = this.geoTransform.lonLatToWebMercator(extent.minLon, extent.minLat);
+      const [maxMX, maxMY] = this.geoTransform.lonLatToWebMercator(extent.maxLon, extent.maxLat);
+      const extentWidthMeters = Math.abs(maxMX - minMX);
+      const extentHeightMeters = Math.abs(maxMY - minMY);
+      const sceneSizeFactor = Math.max(extentWidthMeters, extentHeightMeters) * sceneScale;
+
+      const result = await this.osmTileService.createGroundPlane(
+        extent,
+        sceneCenter,
+        sceneSizeFactor,
+        { zOffset: -0.1 }  // Below cadastral polygons
+      );
+
+      if (result) {
+        this.osmGroup = result.group;
+        this.scene.add(this.osmGroup);
+        this.osmMapStatus.emit('loaded');
+      }
+    } catch (err) {
+      console.warn('Failed to load OSM for cadastral extent:', err);
+      this.osmMapStatus.emit('error');
+    }
+  }
+
+  /**
+   * Remove cadastral polygon layer.
+   */
+  private removeCadastralPolygons(): void {
+    if (!this.cadastralLayerResult) return;
+
+    this.cadastralPolygonService.disposeCadastralLayer(this.cadastralLayerResult);
+    this.scene.remove(this.cadastralLayerResult.group);
+    this.cadastralLayerResult = null;
+    this.selectedCadastralId = null;
+  }
+
+  /**
+   * Highlight a cadastral polygon by ID.
+   */
+  public highlightCadastralById(parcelId: string | null): void {
+    if (!this.cadastralLayerResult) return;
+
+    // Clear previous highlight
+    if (this.selectedCadastralId) {
+      const prevPolygon = this.cadastralLayerResult.polygons.find(
+        p => p.parcelId === this.selectedCadastralId
+      );
+      if (prevPolygon) {
+        this.cadastralPolygonService.highlightPolygon(prevPolygon, false);
+      }
+    }
+
+    this.selectedCadastralId = parcelId;
+
+    // Apply new highlight
+    if (parcelId) {
+      const polygonData = this.cadastralLayerResult.polygons.find(p => p.parcelId === parcelId);
+      if (polygonData) {
+        this.cadastralPolygonService.highlightPolygon(polygonData, true);
+      }
+    }
+  }
+
+  /**
+   * Pick cadastral polygon at click position.
+   */
+  private pickCadastralPolygon(): string | null {
+    if (!this.cadastralLayerResult) return null;
+
+    const intersections = this.raycaster.intersectObject(this.cadastralLayerResult.group, true);
+    if (intersections.length === 0) return null;
+
+    for (const hit of intersections) {
+      const userData = hit.object.userData;
+      if (userData?.['type'] === 'cadastral-fill' && userData?.['parcelId']) {
+        return userData['parcelId'];
+      }
+    }
+
+    return null;
   }
 
   /**
