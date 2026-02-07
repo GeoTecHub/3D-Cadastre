@@ -1,8 +1,10 @@
 import { Component, Inject, PLATFORM_ID, signal, effect, inject, ViewChild, computed, NgZone, untracked } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
+import { Router } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { CityjsonService } from '../../services/cityjson';
 import { BackendService } from '../../services/backend.service';
+import { AuthService } from '../../services/auth.service';
 import { NinjaViewer } from '../viewers/ninja-viewer/ninja-viewer';
 import { BuildingInfoPanel } from '../building-info-panel/building-info-panel';
 import { LandInfoPanel } from '../land-info-panel/land-info-panel';
@@ -38,6 +40,8 @@ export class ViewerContainer {
   private readonly cityjsonService = inject(CityjsonService);
   private readonly backendService = inject(BackendService);
   private readonly parcelApiService = inject(ParcelApiService);
+  private readonly authService = inject(AuthService);
+  private readonly router = inject(Router);
   private readonly ngZone = inject(NgZone);
 
   @ViewChild(NinjaViewer) ninjaViewer!: NinjaViewer;
@@ -63,9 +67,11 @@ export class ViewerContainer {
   showOsmMap = signal(false);
   osmMapStatusMsg = signal<string | null>(null);
 
-  // InfoBhoomi API configuration for parcel loading
-  private readonly INFOBHOOMI_TOKEN = '34a555dff74f9f6d15a2bc5e02331d39d66713e8';
+  // Parcel loading state
   private parcelsLoading = signal(false);
+
+  // Expose username from auth service
+  readonly currentUser = this.authService.user;
 
   // Dialog visibility
   showSaveModelDialog = signal(false);
@@ -726,7 +732,7 @@ export class ViewerContainer {
     this.isLoading.set(true);
     this.loadError.set(null);
 
-    this.parcelApiService.fetchParcels('/user/survey_rep_data_user/', authToken)
+    this.parcelApiService.fetchParcels('/user/user-authentication/', authToken)
       .subscribe({
         next: (parcels) => {
           this.parcelsEpsg.set(srcEpsg);
@@ -746,16 +752,22 @@ export class ViewerContainer {
   }
 
   /**
-   * Load all parcels from InfoBhoomi API with built-in token.
-   * Handles pagination automatically to fetch all ~3000 parcels.
+   * Load all parcels from InfoBhoomi API using authenticated token.
+   * Handles pagination automatically to fetch all parcels.
    */
   loadParcelsFromInfoBhoomi(): void {
     if (this.parcelsLoading()) return;
 
+    const token = this.authService.getToken();
+    if (!token) {
+      console.warn('Cannot load parcels: No authentication token available');
+      return;
+    }
+
     this.parcelsLoading.set(true);
     console.info('Loading parcels from InfoBhoomi API...');
 
-    this.parcelApiService.fetchAllParcels('/user/survey_rep_data_user/', this.INFOBHOOMI_TOKEN)
+    this.parcelApiService.fetchAllParcels('/user/user-authentication/', token)
       .subscribe({
         next: (parcels) => {
           this.parcelsEpsg.set(4326); // InfoBhoomi uses WGS84
@@ -771,6 +783,14 @@ export class ViewerContainer {
           this.parcelsLoading.set(false);
         }
       });
+  }
+
+  /**
+   * Logout and redirect to login page.
+   */
+  logout(): void {
+    this.authService.logout();
+    this.router.navigate(['/login']);
   }
 
   /**
