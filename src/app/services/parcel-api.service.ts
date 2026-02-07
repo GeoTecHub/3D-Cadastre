@@ -2,9 +2,19 @@
 
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { Observable, of, catchError, map, from, firstValueFrom } from 'rxjs';
+import { Observable, of, catchError, map, from, firstValueFrom, throwError, switchMap } from 'rxjs';
 import { ParcelFeatureCollection, ParcelFeature } from './parcel-layer.service';
 import { LandUse } from '../models/land-parcel.model';
+
+/**
+ * Authentication validation response from /api/user/user-authentication/
+ */
+export interface AuthValidationResponse {
+  is_token_valid: boolean;
+  is_active: boolean;
+  is_role_id: boolean;
+  is_org_active: boolean;
+}
 
 /**
  * Expected response structure from the InfoBhoomi backend.
@@ -61,40 +71,109 @@ export class ParcelApiService {
   constructor(private http: HttpClient) {}
 
   /**
-   * Fetch parcels from the backend API.
+   * Validate user authentication by calling /api/user/user-authentication/
+   * Checks all 4 required fields: is_token_valid, is_active, is_role_id, is_org_active
    *
-   * @param endpoint - API endpoint path (default: '/user/user-authentication/')
-   * @param authToken - Optional JWT or API token for authentication
-   * @param bbox - Optional bounding box filter [minX, minY, maxX, maxY]
+   * @param authToken - JWT or API token for authentication
+   * @returns Observable that completes if valid, throws error if invalid
    */
-  fetchParcels(
-    endpoint: string = '/user/user-authentication/',
-    authToken?: string,
-    bbox?: [number, number, number, number]
-  ): Observable<ParcelFeatureCollection> {
-    const url = `${this.API_BASE}${endpoint}`;
-
-    let headers = new HttpHeaders({
-      'Content-Type': 'application/json'
+  validateAuthentication(authToken: string): Observable<AuthValidationResponse> {
+    const url = `${this.API_BASE}/user/user-authentication/`;
+    const headers = new HttpHeaders({
+      'Content-Type': 'application/json',
+      'Authorization': `Token ${authToken}`
     });
 
-    if (authToken) {
-      // Use Token auth for Django REST Framework (InfoBhoomi backend)
-      headers = headers.set('Authorization', `Token ${authToken}`);
-    }
+    return this.http.post<AuthValidationResponse>(url, {}, { headers }).pipe(
+      map(response => {
+        // Check all 4 validation fields
+        const errors: string[] = [];
 
-    // Build request body
+        if (!response.is_token_valid) {
+          errors.push('Token is invalid or expired');
+        }
+        if (!response.is_active) {
+          errors.push('User account is not active');
+        }
+        if (!response.is_role_id) {
+          errors.push('User role is not valid');
+        }
+        if (!response.is_org_active) {
+          errors.push('Organization is not active');
+        }
+
+        if (errors.length > 0) {
+          const errorMessage = `Authentication failed: ${errors.join(', ')}`;
+          console.error('ParcelApiService:', errorMessage);
+          throw new Error(errorMessage);
+        }
+
+        console.info('ParcelApiService: Authentication validated successfully');
+        return response;
+      }),
+      catchError(err => {
+        if (err instanceof Error) {
+          return throwError(() => err);
+        }
+        console.error('ParcelApiService: Authentication validation failed', err);
+        return throwError(() => new Error('Authentication validation failed. Please login again.'));
+      })
+    );
+  }
+
+  /**
+   * Fetch survey/parcel geometry data from /api/user/survey_rep_data_user/
+   *
+   * @param authToken - JWT or API token for authentication
+   * @param bbox - Optional bounding box filter [minX, minY, maxX, maxY]
+   */
+  fetchSurveyData(
+    authToken: string,
+    bbox?: [number, number, number, number]
+  ): Observable<ParcelFeatureCollection> {
+    const url = `${this.API_BASE}/user/survey_rep_data_user/`;
+    const headers = new HttpHeaders({
+      'Content-Type': 'application/json',
+      'Authorization': `Token ${authToken}`
+    });
+
     const body: { [key: string]: unknown } = {};
     if (bbox) {
       body['bbox'] = bbox.join(',');
     }
 
-    // Use POST method as required by the user-authentication endpoint
     return this.http.post<InfoBhoomiResponse>(url, body, { headers }).pipe(
       map(response => this.convertToGeoJSON(response)),
       catchError(err => {
+        console.error('ParcelApiService: Failed to fetch survey data', err);
+        return throwError(() => new Error('Failed to fetch survey data'));
+      })
+    );
+  }
+
+  /**
+   * Fetch parcels from the backend API.
+   * First validates authentication, then fetches geometry data.
+   *
+   * @param authToken - JWT or API token for authentication
+   * @param bbox - Optional bounding box filter [minX, minY, maxX, maxY]
+   */
+  fetchParcels(
+    endpoint: string = '/user/survey_rep_data_user/',
+    authToken?: string,
+    bbox?: [number, number, number, number]
+  ): Observable<ParcelFeatureCollection> {
+    if (!authToken) {
+      console.error('ParcelApiService: No auth token provided');
+      return of({ type: 'FeatureCollection' as const, features: [] });
+    }
+
+    // First validate authentication, then fetch survey data
+    return this.validateAuthentication(authToken).pipe(
+      switchMap(() => this.fetchSurveyData(authToken, bbox)),
+      catchError(err => {
         console.error('ParcelApiService: Failed to fetch parcels', err);
-        return of({ type: 'FeatureCollection' as const, features: [] });
+        return throwError(() => err);
       })
     );
   }
@@ -225,22 +304,29 @@ export class ParcelApiService {
   }
 
   /**
-   * Fetch all parcels from a paginated API endpoint.
-   * Handles pagination automatically by following the 'next' links.
+   * Fetch all parcels from the InfoBhoomi API.
+   * First validates authentication, then fetches geometry data with pagination.
    *
-   * @param endpoint - API endpoint path (default: '/user/user-authentication/')
+   * @param endpoint - API endpoint path (default: '/user/survey_rep_data_user/')
    * @param authToken - JWT or API token for authentication
    * @returns Observable with all parcels combined into a single FeatureCollection
    */
   fetchAllParcels(
-    endpoint: string = '/user/user-authentication/',
+    endpoint: string = '/user/survey_rep_data_user/',
     authToken: string
   ): Observable<ParcelFeatureCollection> {
-    return from(this.fetchAllPagesAsync(endpoint, authToken));
+    // First validate authentication, then fetch all pages
+    return this.validateAuthentication(authToken).pipe(
+      switchMap(() => from(this.fetchAllPagesAsync(endpoint, authToken))),
+      catchError(err => {
+        console.error('ParcelApiService: Failed to fetch all parcels', err);
+        return throwError(() => err);
+      })
+    );
   }
 
   /**
-   * Async method to fetch all pages of parcels.
+   * Async method to fetch all pages of parcels from survey_rep_data_user endpoint.
    */
   private async fetchAllPagesAsync(
     endpoint: string,
@@ -260,7 +346,7 @@ export class ParcelApiService {
       console.info(`ParcelApiService: Fetching page ${pageCount} from ${url}`);
 
       try {
-        // Use POST method as required by the user-authentication endpoint
+        // Use POST method for the survey_rep_data_user endpoint
         const response: InfoBhoomiResponse = await firstValueFrom(
           this.http.post<InfoBhoomiResponse>(url, {}, { headers })
         );

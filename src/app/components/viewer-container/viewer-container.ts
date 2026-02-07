@@ -726,13 +726,15 @@ export class ViewerContainer {
 
   /**
    * Load parcels from the InfoBhoomi backend API.
+   * Validates authentication first, then fetches geometry data.
    * Requires authentication token.
    */
   loadParcelsFromBackend(authToken: string, srcEpsg: number = 4326): void {
     this.isLoading.set(true);
     this.loadError.set(null);
 
-    this.parcelApiService.fetchParcels('/user/user-authentication/', authToken)
+    // Uses the new flow: validate auth first, then fetch from survey_rep_data_user
+    this.parcelApiService.fetchParcels('/user/survey_rep_data_user/', authToken)
       .subscribe({
         next: (parcels) => {
           this.parcelsEpsg.set(srcEpsg);
@@ -745,7 +747,9 @@ export class ViewerContainer {
         },
         error: (err) => {
           console.error('Failed to load parcels from backend:', err);
-          this.loadError.set('Failed to load parcels from backend');
+          // Show user-friendly error message
+          const errorMessage = err instanceof Error ? err.message : 'Failed to load parcels from backend';
+          this.loadError.set(errorMessage);
           this.isLoading.set(false);
         }
       });
@@ -753,6 +757,7 @@ export class ViewerContainer {
 
   /**
    * Load all parcels from InfoBhoomi API using authenticated token.
+   * First validates authentication (checks all 4 fields), then fetches geometry data.
    * Handles pagination automatically to fetch all parcels.
    */
   loadParcelsFromInfoBhoomi(): void {
@@ -761,13 +766,16 @@ export class ViewerContainer {
     const token = this.authService.getToken();
     if (!token) {
       console.warn('Cannot load parcels: No authentication token available');
+      this.loadError.set('Please login to load parcel data');
       return;
     }
 
     this.parcelsLoading.set(true);
+    this.loadError.set(null);
     console.info('Loading parcels from InfoBhoomi API...');
 
-    this.parcelApiService.fetchAllParcels('/user/user-authentication/', token)
+    // Uses the new flow: validate auth first, then fetch from survey_rep_data_user
+    this.parcelApiService.fetchAllParcels('/user/survey_rep_data_user/', token)
       .subscribe({
         next: (parcels) => {
           this.parcelsEpsg.set(4326); // InfoBhoomi uses WGS84
@@ -780,6 +788,9 @@ export class ViewerContainer {
         },
         error: (err) => {
           console.error('Failed to load parcels from InfoBhoomi:', err);
+          // Show user-friendly error message
+          const errorMessage = err instanceof Error ? err.message : 'Failed to load parcel data';
+          this.loadError.set(errorMessage);
           this.parcelsLoading.set(false);
         }
       });
