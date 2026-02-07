@@ -83,13 +83,14 @@ export class ParcelApiService {
       headers = headers.set('Authorization', `Token ${authToken}`);
     }
 
-    // Build query params
-    let params: { [key: string]: string } = {};
+    // Build request body
+    const body: { [key: string]: unknown } = {};
     if (bbox) {
-      params['bbox'] = bbox.join(',');
+      body['bbox'] = bbox.join(',');
     }
 
-    return this.http.get<InfoBhoomiResponse>(url, { headers, params }).pipe(
+    // Use POST method as required by the user-authentication endpoint
+    return this.http.post<InfoBhoomiResponse>(url, body, { headers }).pipe(
       map(response => this.convertToGeoJSON(response)),
       catchError(err => {
         console.error('ParcelApiService: Failed to fetch parcels', err);
@@ -259,8 +260,9 @@ export class ParcelApiService {
       console.info(`ParcelApiService: Fetching page ${pageCount} from ${url}`);
 
       try {
+        // Use POST method as required by the user-authentication endpoint
         const response: InfoBhoomiResponse = await firstValueFrom(
-          this.http.get<InfoBhoomiResponse>(url, { headers })
+          this.http.post<InfoBhoomiResponse>(url, {}, { headers })
         );
         if (!response) break;
 
