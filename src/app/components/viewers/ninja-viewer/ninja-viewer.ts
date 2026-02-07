@@ -10,7 +10,7 @@ import { NinjaLoader } from 'src/app/services/ninja-loader';
 import { CityjsonService } from 'src/app/services/cityjson';
 import { Apartment } from 'src/app/services/cityjson.model';
 import { GeoTransformService, GeoExtent } from 'src/app/services/geo-transform.service';
-import { OsmTileService, COUNTRY_EXTENTS, CountryExtent, OsmHybridResult } from 'src/app/services/osm-tile.service';
+import { OsmTileService } from 'src/app/services/osm-tile.service';
 import { ParcelLayerService, ParcelFeatureCollection, ParcelMeshData, ParcelLayerResult } from 'src/app/services/parcel-layer.service';
 import { toSignal } from '@angular/core/rxjs-interop';
 
@@ -47,11 +47,6 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
   // --- MODERN SIGNALS ---
   focusObjectId = input<string | null>(null);
   showOsmMap = input<boolean>(false);
-  // Hybrid OSM layer options
-  osmHybridMode = input<boolean>(true); // Enable hybrid mode (country + detail layers)
-  osmCountryKey = input<string>('SRI_LANKA'); // Key from COUNTRY_EXTENTS
-  showCountryLayer = input<boolean>(true); // Show country overview layer
-  showDetailLayer = input<boolean>(true); // Show building detail layer
   parcelsData = input<ParcelFeatureCollection | null>(null);
   parcelsEpsg = input<number>(4326); // Default to WGS84 (InfoBhoomi uses WGS84)
   objectSelected = output<string>();
@@ -92,13 +87,9 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
   private pointerIsDown = false;
   private pointerDownPos = new THREE.Vector2();
 
-  // OSM ground plane (legacy single layer)
+  // OSM ground plane
   private osmGroup: THREE.Group | null = null;
   private osmLoading = false;
-
-  // Hybrid OSM layers
-  private osmCountryLayer: THREE.Group | null = null;
-  private osmDetailLayer: THREE.Group | null = null;
 
   // Parcel layer
   private parcelLayerResult: ParcelLayerResult | null = null;
@@ -767,9 +758,7 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
   // ─── OSM Ground Plane ─────────────────────────────────────
 
   private async loadOsmGroundPlane(): Promise<void> {
-    // Check if already loading or if layers exist
-    const hasLayers = this.osmGroup || this.osmCountryLayer || this.osmDetailLayer;
-    if (this.osmLoading || hasLayers) return;
+    if (this.osmLoading || this.osmGroup) return;
 
     const data = this.cityData();
     if (!data || !this.cityModel) {
@@ -796,24 +785,18 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
       // Place the ground plane at the bottom of the building
       const groundCenter = new THREE.Vector3(center.x, center.y, box.min.z);
 
-      // Check if hybrid mode is enabled
-      if (this.osmHybridMode()) {
-        await this.loadHybridOsmLayers(extent, groundCenter, maxDim);
-      } else {
-        // Legacy single layer mode
-        const result = await this.osmTileService.createGroundPlane(
-          extent,
-          groundCenter,
-          maxDim
-        );
+      const result = await this.osmTileService.createGroundPlane(
+        extent,
+        groundCenter,
+        maxDim
+      );
 
-        if (result && this.showOsmMap()) {
-          this.osmGroup = result.group;
-          this.scene.add(this.osmGroup);
-          this.osmMapStatus.emit('loaded');
-        } else if (!result) {
-          this.osmMapStatus.emit('error');
-        }
+      if (result && this.showOsmMap()) {
+        this.osmGroup = result.group;
+        this.scene.add(this.osmGroup);
+        this.osmMapStatus.emit('loaded');
+      } else if (!result) {
+        this.osmMapStatus.emit('error');
       }
     } catch (err) {
       console.warn('Failed to load OSM ground plane:', err);
@@ -823,120 +806,19 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     }
   }
 
-  /**
-   * Load hybrid OSM layers: country overview + building detail
-   */
-  private async loadHybridOsmLayers(
-    buildingExtent: GeoExtent,
-    groundCenter: THREE.Vector3,
-    maxDim: number
-  ): Promise<void> {
-    const countryKey = this.osmCountryKey();
-    const countryExtent = COUNTRY_EXTENTS[countryKey];
-
-    if (!countryExtent) {
-      console.warn(`Country extent not found for key: ${countryKey}, falling back to single layer`);
-      const result = await this.osmTileService.createGroundPlane(buildingExtent, groundCenter, maxDim);
-      if (result && this.showOsmMap()) {
-        this.osmGroup = result.group;
-        this.scene.add(this.osmGroup);
-        this.osmMapStatus.emit('loaded');
-      }
-      return;
-    }
-
-    console.log(`[OSM Hybrid] Loading hybrid layers for ${countryExtent.name}`);
-    console.log(`[OSM Hybrid] Building extent: ${buildingExtent.minLon}, ${buildingExtent.minLat} to ${buildingExtent.maxLon}, ${buildingExtent.maxLat}`);
-    console.log(`[OSM Hybrid] Country extent: ${countryExtent.minLon}, ${countryExtent.minLat} to ${countryExtent.maxLon}, ${countryExtent.maxLat}`);
-
-    const hybridResult = await this.osmTileService.createHybridLayers(
-      buildingExtent,
-      countryExtent,
-      groundCenter,
-      maxDim
-    );
-
-    let layersAdded = 0;
-
-    // Add country layer if enabled and available
-    if (this.showCountryLayer() && hybridResult.countryLayer?.group) {
-      this.osmCountryLayer = hybridResult.countryLayer.group;
-      this.scene.add(this.osmCountryLayer);
-      layersAdded++;
-      console.log('[OSM Hybrid] Country layer added');
-    }
-
-    // Add detail layer if enabled and available
-    if (this.showDetailLayer() && hybridResult.detailLayer?.group) {
-      this.osmDetailLayer = hybridResult.detailLayer.group;
-      this.scene.add(this.osmDetailLayer);
-      layersAdded++;
-      console.log('[OSM Hybrid] Detail layer added');
-    }
-
-    if (layersAdded > 0 && this.showOsmMap()) {
-      this.osmMapStatus.emit('loaded');
-      console.log(`[OSM Hybrid] ${layersAdded} layer(s) loaded successfully`);
-    } else if (layersAdded === 0) {
-      this.osmMapStatus.emit('error');
-    }
-  }
-
-  /**
-   * Toggle visibility of the country layer
-   */
-  public setCountryLayerVisible(visible: boolean): void {
-    if (this.osmCountryLayer) {
-      this.osmCountryLayer.visible = visible;
-    }
-  }
-
-  /**
-   * Toggle visibility of the detail layer
-   */
-  public setDetailLayerVisible(visible: boolean): void {
-    if (this.osmDetailLayer) {
-      this.osmDetailLayer.visible = visible;
-    }
-  }
-
-  /**
-   * Get available country extent keys
-   */
-  public getAvailableCountries(): string[] {
-    return Object.keys(COUNTRY_EXTENTS);
-  }
-
   private removeOsmGroundPlane(): void {
-    // Helper to dispose a group's resources
-    const disposeGroup = (group: THREE.Group | null): void => {
-      if (!group) return;
-      group.traverse((child) => {
-        if (child instanceof THREE.Mesh) {
-          child.geometry.dispose();
-          const mat = child.material as THREE.MeshBasicMaterial;
-          mat.map?.dispose();
-          mat.dispose();
-        }
-      });
-      this.scene.remove(group);
-    };
+    if (!this.osmGroup) return;
 
-    // Remove legacy single layer
-    if (this.osmGroup) {
-      disposeGroup(this.osmGroup);
-      this.osmGroup = null;
-    }
-
-    // Remove hybrid layers
-    if (this.osmCountryLayer) {
-      disposeGroup(this.osmCountryLayer);
-      this.osmCountryLayer = null;
-    }
-    if (this.osmDetailLayer) {
-      disposeGroup(this.osmDetailLayer);
-      this.osmDetailLayer = null;
-    }
+    this.osmGroup.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.geometry.dispose();
+        const mat = child.material as THREE.MeshBasicMaterial;
+        mat.map?.dispose();
+        mat.dispose();
+      }
+    });
+    this.scene.remove(this.osmGroup);
+    this.osmGroup = null;
   }
 
   // ─── Parcel Layer ───────────────────────────────────────────
