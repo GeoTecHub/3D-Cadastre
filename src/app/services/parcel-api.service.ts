@@ -53,7 +53,10 @@ export interface InfoBhoomiResponse {
 @Injectable({ providedIn: 'root' })
 export class ParcelApiService {
 
-  private readonly API_BASE = 'https://infobhoomiback.geoinfobox.com/api';
+  // Use relative path to leverage Angular's proxy configuration (avoids CORS)
+  private readonly API_BASE = '/api';
+  // Full URL used to strip from pagination 'next' links
+  private readonly FULL_API_HOST = 'https://infobhoomiback.geoinfobox.com';
 
   constructor(private http: HttpClient) {}
 
@@ -267,8 +270,12 @@ export class ParcelApiService {
 
         console.info(`ParcelApiService: Page ${pageCount} returned ${pageParcels.length} parcels (total: ${allParcels.length})`);
 
-        // Check for next page
-        url = response.next || null;
+        // Check for next page - convert full URL to relative path for proxy
+        if (response.next) {
+          url = response.next.replace(this.FULL_API_HOST, '');
+        } else {
+          url = null;
+        }
       } catch (err) {
         console.error(`ParcelApiService: Error fetching page ${pageCount}`, err);
         break;
