@@ -2,7 +2,7 @@
 
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { Observable, of, catchError, map } from 'rxjs';
+import { Observable, of, catchError, map, from, firstValueFrom } from 'rxjs';
 import { ParcelFeatureCollection, ParcelFeature } from './parcel-layer.service';
 import { LandUse } from '../models/land-parcel.model';
 
@@ -218,6 +218,65 @@ export class ParcelApiService {
         return [x, y];
       })
       .filter(coord => !isNaN(coord[0]) && !isNaN(coord[1]));
+  }
+
+  /**
+   * Fetch all parcels from a paginated API endpoint.
+   * Handles pagination automatically by following the 'next' links.
+   *
+   * @param endpoint - API endpoint path (default: '/user/survey_rep_data_user/')
+   * @param authToken - JWT or API token for authentication
+   * @returns Observable with all parcels combined into a single FeatureCollection
+   */
+  fetchAllParcels(
+    endpoint: string = '/user/survey_rep_data_user/',
+    authToken: string
+  ): Observable<ParcelFeatureCollection> {
+    return from(this.fetchAllPagesAsync(endpoint, authToken));
+  }
+
+  /**
+   * Async method to fetch all pages of parcels.
+   */
+  private async fetchAllPagesAsync(
+    endpoint: string,
+    authToken: string
+  ): Promise<ParcelFeatureCollection> {
+    const allParcels: InfoBhoomiParcel[] = [];
+    let url: string | null = `${this.API_BASE}${endpoint}`;
+    let pageCount = 0;
+
+    const headers = new HttpHeaders({
+      'Content-Type': 'application/json',
+      'Authorization': `Token ${authToken}`
+    });
+
+    while (url) {
+      pageCount++;
+      console.info(`ParcelApiService: Fetching page ${pageCount} from ${url}`);
+
+      try {
+        const response: InfoBhoomiResponse = await firstValueFrom(
+          this.http.get<InfoBhoomiResponse>(url, { headers })
+        );
+        if (!response) break;
+
+        // Extract parcels from this page
+        const pageParcels = response.data || response.results || response.features || [];
+        allParcels.push(...pageParcels);
+
+        console.info(`ParcelApiService: Page ${pageCount} returned ${pageParcels.length} parcels (total: ${allParcels.length})`);
+
+        // Check for next page
+        url = response.next || null;
+      } catch (err) {
+        console.error(`ParcelApiService: Error fetching page ${pageCount}`, err);
+        break;
+      }
+    }
+
+    console.info(`ParcelApiService: Fetched ${allParcels.length} parcels from ${pageCount} pages`);
+    return this.convertToGeoJSON({ data: allParcels });
   }
 
   /**

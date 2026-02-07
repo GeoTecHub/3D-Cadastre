@@ -63,12 +63,9 @@ export class ViewerContainer {
   showOsmMap = signal(false);
   osmMapStatusMsg = signal<string | null>(null);
 
-  // Hybrid OSM layer controls
-  osmHybridMode = signal(true); // Enable hybrid mode by default
-  osmCountryKey = signal('SRI_LANKA'); // Default country
-  showCountryLayer = signal(true); // Show country overview
-  showDetailLayer = signal(true); // Show building detail
-  availableCountries = ['SRI_LANKA', 'INDIA']; // Available country options
+  // InfoBhoomi API configuration for parcel loading
+  private readonly INFOBHOOMI_TOKEN = 'f23c51d8f1526332f9f10d9431aeb9c636c9090c';
+  private parcelsLoading = signal(false);
 
   // Dialog visibility
   showSaveModelDialog = signal(false);
@@ -142,6 +139,8 @@ export class ViewerContainer {
 
     if (this.isBrowser) {
       this.loadDefaultModel();
+      // Auto-load parcels from InfoBhoomi API
+      this.loadParcelsFromInfoBhoomi();
     }
 
     effect(() => {
@@ -417,10 +416,7 @@ export class ViewerContainer {
         this.osmMapStatusMsg.set('Loading OSM map tiles...');
         break;
       case 'loaded':
-        const layerInfo = this.osmHybridMode()
-          ? `(${this.showCountryLayer() ? 'Country' : ''}${this.showCountryLayer() && this.showDetailLayer() ? ' + ' : ''}${this.showDetailLayer() ? 'Detail' : ''} layers)`
-          : '';
-        this.osmMapStatusMsg.set(`OSM map loaded ${layerInfo}`);
+        this.osmMapStatusMsg.set('OSM map loaded');
         // Auto-clear after 3s
         setTimeout(() => {
           if (this.osmMapStatusMsg()?.startsWith('OSM map loaded')) {
@@ -434,40 +430,6 @@ export class ViewerContainer {
       case 'error':
         this.osmMapStatusMsg.set('Failed to load OSM tiles.');
         break;
-    }
-  }
-
-  // ─── OSM Hybrid Layer Controls ────────────────────────────
-
-  toggleCountryLayer(): void {
-    this.showCountryLayer.update(v => !v);
-    if (this.ninjaViewer) {
-      this.ninjaViewer.setCountryLayerVisible(this.showCountryLayer());
-    }
-  }
-
-  toggleDetailLayer(): void {
-    this.showDetailLayer.update(v => !v);
-    if (this.ninjaViewer) {
-      this.ninjaViewer.setDetailLayerVisible(this.showDetailLayer());
-    }
-  }
-
-  setOsmCountry(countryKey: string): void {
-    this.osmCountryKey.set(countryKey);
-    // If OSM map is currently showing, reload with new country
-    if (this.showOsmMap()) {
-      this.showOsmMap.set(false);
-      setTimeout(() => this.showOsmMap.set(true), 100);
-    }
-  }
-
-  toggleOsmHybridMode(): void {
-    this.osmHybridMode.update(v => !v);
-    // Reload OSM map with new mode
-    if (this.showOsmMap()) {
-      this.showOsmMap.set(false);
-      setTimeout(() => this.showOsmMap.set(true), 100);
     }
   }
 
@@ -779,6 +741,34 @@ export class ViewerContainer {
           console.error('Failed to load parcels from backend:', err);
           this.loadError.set('Failed to load parcels from backend');
           this.isLoading.set(false);
+        }
+      });
+  }
+
+  /**
+   * Load all parcels from InfoBhoomi API with built-in token.
+   * Handles pagination automatically to fetch all ~3000 parcels.
+   */
+  loadParcelsFromInfoBhoomi(): void {
+    if (this.parcelsLoading()) return;
+
+    this.parcelsLoading.set(true);
+    console.info('Loading parcels from InfoBhoomi API...');
+
+    this.parcelApiService.fetchAllParcels('/user/survey_rep_data_user/', this.INFOBHOOMI_TOKEN)
+      .subscribe({
+        next: (parcels) => {
+          this.parcelsEpsg.set(4326); // InfoBhoomi uses WGS84
+          this.parcelsData.set(parcels);
+          console.info('All parcels loaded from InfoBhoomi:', {
+            count: parcels.features.length,
+            epsg: 4326
+          });
+          this.parcelsLoading.set(false);
+        },
+        error: (err) => {
+          console.error('Failed to load parcels from InfoBhoomi:', err);
+          this.parcelsLoading.set(false);
         }
       });
   }
