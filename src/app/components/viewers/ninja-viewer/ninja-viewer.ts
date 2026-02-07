@@ -825,31 +825,85 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
 
   /**
    * Calculate geographic extent from parcel GeoJSON features.
+   * Handles Polygon, MultiPolygon, Point, and LineString geometry types.
    */
   private calculateParcelExtent(parcels: ParcelFeatureCollection): GeoExtent | null {
     let minLon = Infinity, maxLon = -Infinity;
     let minLat = Infinity, maxLat = -Infinity;
 
+    const updateBounds = (lon: number, lat: number) => {
+      if (typeof lon === 'number' && typeof lat === 'number' && isFinite(lon) && isFinite(lat)) {
+        if (lon < minLon) minLon = lon;
+        if (lon > maxLon) maxLon = lon;
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+      }
+    };
+
     for (const feature of parcels.features) {
       const geom = feature.geometry;
       if (!geom || !geom.coordinates) continue;
 
-      // Handle Polygon and MultiPolygon
-      const polygons = geom.type === 'MultiPolygon'
-        ? geom.coordinates as number[][][][]
-        : [geom.coordinates as number[][][]];
-
-      for (const polygon of polygons) {
-        for (const ring of polygon) {
-          for (const coord of ring) {
-            const lon = coord[0];
-            const lat = coord[1];
-            if (lon < minLon) minLon = lon;
-            if (lon > maxLon) maxLon = lon;
-            if (lat < minLat) minLat = lat;
-            if (lat > maxLat) maxLat = lat;
+      switch (geom.type) {
+        case 'Point': {
+          // Point: coordinates = [lon, lat]
+          const coords = geom.coordinates as number[];
+          if (Array.isArray(coords) && coords.length >= 2) {
+            updateBounds(coords[0], coords[1]);
           }
+          break;
         }
+        case 'LineString': {
+          // LineString: coordinates = [[lon, lat], [lon, lat], ...]
+          const coords = geom.coordinates as number[][];
+          if (Array.isArray(coords)) {
+            for (const coord of coords) {
+              if (Array.isArray(coord) && coord.length >= 2) {
+                updateBounds(coord[0], coord[1]);
+              }
+            }
+          }
+          break;
+        }
+        case 'Polygon': {
+          // Polygon: coordinates = [[[lon, lat], ...], ...] (array of rings)
+          const rings = geom.coordinates as number[][][];
+          if (Array.isArray(rings)) {
+            for (const ring of rings) {
+              if (Array.isArray(ring)) {
+                for (const coord of ring) {
+                  if (Array.isArray(coord) && coord.length >= 2) {
+                    updateBounds(coord[0], coord[1]);
+                  }
+                }
+              }
+            }
+          }
+          break;
+        }
+        case 'MultiPolygon': {
+          // MultiPolygon: coordinates = [[[[lon, lat], ...], ...], ...]
+          const polygons = geom.coordinates as number[][][][];
+          if (Array.isArray(polygons)) {
+            for (const polygon of polygons) {
+              if (Array.isArray(polygon)) {
+                for (const ring of polygon) {
+                  if (Array.isArray(ring)) {
+                    for (const coord of ring) {
+                      if (Array.isArray(coord) && coord.length >= 2) {
+                        updateBounds(coord[0], coord[1]);
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+          break;
+        }
+        default:
+          // Skip unsupported geometry types
+          console.warn(`Unsupported geometry type: ${geom.type}`);
       }
     }
 

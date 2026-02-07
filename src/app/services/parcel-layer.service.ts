@@ -21,8 +21,8 @@ export interface ParcelProperties {
 }
 
 export interface ParcelGeometry {
-  type: 'Polygon' | 'MultiPolygon';
-  coordinates: number[][][] | number[][][][];
+  type: 'Point' | 'LineString' | 'Polygon' | 'MultiPolygon';
+  coordinates: number[] | number[][] | number[][][] | number[][][][];
 }
 
 export interface ParcelFeature {
@@ -146,6 +146,7 @@ export class ParcelLayerService {
 
   /**
    * Create fill mesh and stroke line for a single parcel feature.
+   * Only Polygon and MultiPolygon geometries are supported for mesh creation.
    */
   private createParcelMesh(
     feature: ParcelFeature,
@@ -158,6 +159,12 @@ export class ParcelLayerService {
     const { geometry, properties } = feature;
     if (!geometry || !properties?.parcelId) return null;
 
+    // Only Polygon and MultiPolygon can be rendered as filled meshes
+    if (geometry.type !== 'Polygon' && geometry.type !== 'MultiPolygon') {
+      console.warn(`Skipping non-polygon geometry for parcel ${properties.parcelId}: ${geometry.type}`);
+      return null;
+    }
+
     // Normalize to array of polygon rings (handle MultiPolygon)
     const polygons: number[][][][] = geometry.type === 'MultiPolygon'
       ? geometry.coordinates as number[][][][]
@@ -166,19 +173,26 @@ export class ParcelLayerService {
     // Transform all coordinates to scene space
     const allSceneCoords: number[][][] = [];
     for (const polygon of polygons) {
+      if (!Array.isArray(polygon)) continue;
       const transformedRings: number[][] = [];
       for (const ring of polygon) {
+        if (!Array.isArray(ring)) continue;
         const transformedRing: number[] = [];
         for (const coord of ring) {
+          if (!Array.isArray(coord) || coord.length < 2) continue;
           const [x, y] = this.transformToScene(
             coord[0], coord[1],
             srcEpsg, refMerc, sceneCenter, sceneSizeFactor
           );
           transformedRing.push(x, y);
         }
-        transformedRings.push(transformedRing);
+        if (transformedRing.length >= 6) { // At least 3 points (6 values for x,y pairs)
+          transformedRings.push(transformedRing);
+        }
       }
-      allSceneCoords.push(transformedRings);
+      if (transformedRings.length > 0) {
+        allSceneCoords.push(transformedRings);
+      }
     }
 
     // Create geometry using earcut triangulation
