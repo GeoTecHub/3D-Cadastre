@@ -63,12 +63,12 @@ export class ParcelApiService {
   /**
    * Fetch parcels from the backend API.
    *
-   * @param endpoint - API endpoint path (default: '/user/survey_rep_data_user/')
+   * @param endpoint - API endpoint path (default: '/user/user-authentication/')
    * @param authToken - Optional JWT or API token for authentication
    * @param bbox - Optional bounding box filter [minX, minY, maxX, maxY]
    */
   fetchParcels(
-    endpoint: string = '/user/survey_rep_data_user/',
+    endpoint: string = '/user/user-authentication/',
     authToken?: string,
     bbox?: [number, number, number, number]
   ): Observable<ParcelFeatureCollection> {
@@ -227,12 +227,12 @@ export class ParcelApiService {
    * Fetch all parcels from a paginated API endpoint.
    * Handles pagination automatically by following the 'next' links.
    *
-   * @param endpoint - API endpoint path (default: '/user/survey_rep_data_user/')
+   * @param endpoint - API endpoint path (default: '/user/user-authentication/')
    * @param authToken - JWT or API token for authentication
    * @returns Observable with all parcels combined into a single FeatureCollection
    */
   fetchAllParcels(
-    endpoint: string = '/user/survey_rep_data_user/',
+    endpoint: string = '/user/user-authentication/',
     authToken: string
   ): Observable<ParcelFeatureCollection> {
     return from(this.fetchAllPagesAsync(endpoint, authToken));

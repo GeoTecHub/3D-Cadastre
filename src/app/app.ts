@@ -1,10 +1,10 @@
 import { Component } from '@angular/core';
-import { ViewerContainer } from './components/viewer-container/viewer-container';
+import { RouterOutlet } from '@angular/router';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [ViewerContainer],
+  imports: [RouterOutlet],
   templateUrl: './app.html',
   styleUrls: ['./app.css']
 })
