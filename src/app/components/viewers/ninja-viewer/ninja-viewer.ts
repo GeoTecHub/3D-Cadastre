@@ -823,6 +823,52 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
 
   // ─── Parcel Layer ───────────────────────────────────────────
 
+  /**
+   * Calculate geographic extent from parcel GeoJSON features.
+   */
+  private calculateParcelExtent(parcels: ParcelFeatureCollection): GeoExtent | null {
+    let minLon = Infinity, maxLon = -Infinity;
+    let minLat = Infinity, maxLat = -Infinity;
+
+    for (const feature of parcels.features) {
+      const geom = feature.geometry;
+      if (!geom || !geom.coordinates) continue;
+
+      // Handle Polygon and MultiPolygon
+      const polygons = geom.type === 'MultiPolygon'
+        ? geom.coordinates as number[][][][]
+        : [geom.coordinates as number[][][]];
+
+      for (const polygon of polygons) {
+        for (const ring of polygon) {
+          for (const coord of ring) {
+            const lon = coord[0];
+            const lat = coord[1];
+            if (lon < minLon) minLon = lon;
+            if (lon > maxLon) maxLon = lon;
+            if (lat < minLat) minLat = lat;
+            if (lat > maxLat) maxLat = lat;
+          }
+        }
+      }
+    }
+
+    if (!isFinite(minLon) || !isFinite(maxLon) || !isFinite(minLat) || !isFinite(maxLat)) {
+      return null;
+    }
+
+    return {
+      centerLon: (minLon + maxLon) / 2,
+      centerLat: (minLat + maxLat) / 2,
+      minLon,
+      maxLon,
+      minLat,
+      maxLat,
+      epsg: this.parcelsEpsg(),
+      crsExplicit: true
+    };
+  }
+
   private async loadParcelLayer(): Promise<void> {
     const parcels = this.parcelsData();
     if (!parcels || !this.cityModel) return;
@@ -830,53 +876,66 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     // Remove existing layer first
     this.removeParcelLayer();
 
-    const data = this.cityData();
-    if (!data) return;
-
-    const extent = await this.geoTransformService.getGeoExtent(data);
-    if (!extent) {
-      console.warn('Cannot load parcel layer: no valid CRS extent');
-      return;
-    }
-
     try {
-      // Calculate scene parameters (matching OSM tile service approach)
+      // Calculate extent from actual parcel data (not from building)
+      const parcelExtent = this.calculateParcelExtent(parcels);
+      if (!parcelExtent) {
+        console.warn('Cannot load parcel layer: no valid parcel extent');
+        return;
+      }
+
+      // Get building scene parameters for positioning
       const box = new THREE.Box3().setFromObject(this.cityModel);
-      const center = box.getCenter(new THREE.Vector3());
-      const size = box.getSize(new THREE.Vector3());
-      const maxDim = Math.max(size.x, size.y, 1);
+      const buildingCenter = box.getCenter(new THREE.Vector3());
+      const buildingSize = box.getSize(new THREE.Vector3());
 
-      // Calculate real-world extent in Web Mercator
-      const [minMX, minMY] = this.geoTransform.lonLatToWebMercator(extent.minLon, extent.minLat);
-      const [maxMX, maxMY] = this.geoTransform.lonLatToWebMercator(extent.maxLon, extent.maxLat);
-      const realWidthMeters = Math.abs(maxMX - minMX);
-      const realHeightMeters = Math.abs(maxMY - minMY);
-      const realMaxDim = Math.max(realWidthMeters, realHeightMeters, 1);
-
-      // Scene-to-meter ratio (same as OSM tile service)
-      const sceneToMeterRatio = maxDim / realMaxDim;
-
-      // Position parcels slightly above ground (to avoid z-fighting with OSM tiles)
+      // Position parcels at the building's ground level
       this.parcelGroundZ = box.min.z + 0.1;
 
-      const sceneCenter = new THREE.Vector3(center.x, center.y, this.parcelGroundZ);
+      // Calculate parcel extent in Web Mercator for sizing
+      const [minMX, minMY] = this.geoTransform.lonLatToWebMercator(parcelExtent.minLon, parcelExtent.minLat);
+      const [maxMX, maxMY] = this.geoTransform.lonLatToWebMercator(parcelExtent.maxLon, parcelExtent.maxLat);
+      const parcelWidthMeters = Math.abs(maxMX - minMX);
+      const parcelHeightMeters = Math.abs(maxMY - minMY);
+      const parcelMaxDimMeters = Math.max(parcelWidthMeters, parcelHeightMeters, 1);
 
-      console.info('Parcel layer params:', {
+      // Use building's scene size to determine scale
+      // This ensures parcels are rendered at a reasonable size relative to the building
+      const buildingMaxDim = Math.max(buildingSize.x, buildingSize.y, 1);
+
+      // Scale factor: how many scene units per meter of parcel
+      // We want parcels to fit nicely around the building
+      const targetSceneSize = buildingMaxDim * 2; // Parcels span ~2x building size
+      const sceneToMeterRatio = targetSceneSize / parcelMaxDimMeters;
+
+      // Scene center: position parcels centered around the building
+      const sceneCenter = new THREE.Vector3(buildingCenter.x, buildingCenter.y, this.parcelGroundZ);
+
+      console.info('Parcel layer params (parcel-centric):', {
         sceneCenter: sceneCenter.toArray(),
         sceneToMeterRatio,
-        realMaxDim,
-        maxDim,
+        parcelMaxDimMeters,
+        buildingMaxDim,
+        targetSceneSize,
         parcelsEpsg: this.parcelsEpsg(),
-        extent: { minLon: extent.minLon, maxLon: extent.maxLon, minLat: extent.minLat, maxLat: extent.maxLat }
+        parcelExtent: {
+          minLon: parcelExtent.minLon,
+          maxLon: parcelExtent.maxLon,
+          minLat: parcelExtent.minLat,
+          maxLat: parcelExtent.maxLat,
+          centerLon: parcelExtent.centerLon,
+          centerLat: parcelExtent.centerLat
+        }
       });
 
       // Ensure the parcel CRS is registered in proj4
       await this.geoTransformService.ensureCrsDefined(this.parcelsEpsg());
 
+      // Use parcel extent for the reference point (not building extent)
       this.parcelLayerResult = this.parcelLayerService.createParcelLayer(
         parcels,
         this.parcelsEpsg(),
-        extent,
+        parcelExtent,  // Use parcel extent, not building extent
         sceneCenter,
         sceneToMeterRatio,
         this.parcelGroundZ
