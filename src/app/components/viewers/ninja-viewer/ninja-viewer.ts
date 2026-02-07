@@ -5,6 +5,7 @@ import { isPlatformBrowser } from '@angular/common';
 import * as THREE from 'three';
 // @ts-ignore
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import proj4 from 'proj4';
 
 import { NinjaLoader } from 'src/app/services/ninja-loader';
 import { CityjsonService } from 'src/app/services/cityjson';
@@ -827,18 +828,46 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
   /**
    * Calculate geographic extent from parcel GeoJSON features.
    * Handles Polygon, MultiPolygon, Point, and LineString geometry types.
+   * Transforms coordinates from source EPSG to WGS84 for proper extent calculation.
    */
   private calculateParcelExtent(parcels: ParcelFeatureCollection): GeoExtent | null {
+    const srcEpsg = this.parcelsEpsg();
     let minLon = Infinity, maxLon = -Infinity;
     let minLat = Infinity, maxLat = -Infinity;
 
-    const updateBounds = (lon: number, lat: number) => {
-      if (typeof lon === 'number' && typeof lat === 'number' && isFinite(lon) && isFinite(lat)) {
-        if (lon < minLon) minLon = lon;
-        if (lon > maxLon) maxLon = lon;
-        if (lat < minLat) minLat = lat;
-        if (lat > maxLat) maxLat = lat;
+    // Transform coordinate from source EPSG to WGS84 before updating bounds
+    const updateBounds = (x: number, y: number) => {
+      if (typeof x !== 'number' || typeof y !== 'number' || !isFinite(x) || !isFinite(y)) {
+        return;
       }
+
+      let lon: number, lat: number;
+
+      if (srcEpsg === 4326) {
+        // Already WGS84
+        lon = x;
+        lat = y;
+      } else {
+        // Transform from source EPSG to WGS84
+        try {
+          const result = proj4(`EPSG:${srcEpsg}`, 'EPSG:4326', [x, y]) as [number, number];
+          lon = result[0];
+          lat = result[1];
+        } catch (err) {
+          console.warn('Failed to transform coordinate:', [x, y], 'from EPSG:', srcEpsg, err);
+          return;
+        }
+      }
+
+      // Validate result is valid lon/lat
+      if (!isFinite(lon) || !isFinite(lat) || lon < -180 || lon > 180 || lat < -90 || lat > 90) {
+        return;
+      }
+
+      if (lon < minLon) minLon = lon;
+      if (lon > maxLon) maxLon = lon;
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
     };
 
     for (const feature of parcels.features) {
@@ -847,7 +876,7 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
 
       switch (geom.type) {
         case 'Point': {
-          // Point: coordinates = [lon, lat]
+          // Point: coordinates = [x, y]
           const coords = geom.coordinates as number[];
           if (Array.isArray(coords) && coords.length >= 2) {
             updateBounds(coords[0], coords[1]);
@@ -855,7 +884,7 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
           break;
         }
         case 'LineString': {
-          // LineString: coordinates = [[lon, lat], [lon, lat], ...]
+          // LineString: coordinates = [[x, y], [x, y], ...]
           const coords = geom.coordinates as number[][];
           if (Array.isArray(coords)) {
             for (const coord of coords) {
@@ -867,7 +896,7 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
           break;
         }
         case 'Polygon': {
-          // Polygon: coordinates = [[[lon, lat], ...], ...] (array of rings)
+          // Polygon: coordinates = [[[x, y], ...], ...] (array of rings)
           const rings = geom.coordinates as number[][][];
           if (Array.isArray(rings)) {
             for (const ring of rings) {
@@ -883,7 +912,7 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
           break;
         }
         case 'MultiPolygon': {
-          // MultiPolygon: coordinates = [[[[lon, lat], ...], ...], ...]
+          // MultiPolygon: coordinates = [[[[x, y], ...], ...], ...]
           const polygons = geom.coordinates as number[][][][];
           if (Array.isArray(polygons)) {
             for (const polygon of polygons) {
@@ -909,8 +938,15 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     }
 
     if (!isFinite(minLon) || !isFinite(maxLon) || !isFinite(minLat) || !isFinite(maxLat)) {
+      console.warn('calculateParcelExtent: No valid coordinates found after transformation from EPSG:', srcEpsg);
       return null;
     }
+
+    console.info('calculateParcelExtent: Computed WGS84 extent from EPSG:', srcEpsg, {
+      minLon, maxLon, minLat, maxLat,
+      centerLon: (minLon + maxLon) / 2,
+      centerLat: (minLat + maxLat) / 2
+    });
 
     return {
       centerLon: (minLon + maxLon) / 2,
@@ -919,7 +955,7 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
       maxLon,
       minLat,
       maxLat,
-      epsg: this.parcelsEpsg(),
+      epsg: srcEpsg,
       crsExplicit: true
     };
   }
@@ -932,6 +968,10 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     this.removeParcelLayer();
 
     try {
+      // Ensure the parcel CRS is registered in proj4 BEFORE calculating extent
+      // (needed for coordinate transformation in calculateParcelExtent)
+      await this.geoTransformService.ensureCrsDefined(this.parcelsEpsg());
+
       // Calculate extent from actual parcel data (not from building)
       const parcelExtent = this.calculateParcelExtent(parcels);
       if (!parcelExtent) {
@@ -982,9 +1022,6 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
           centerLat: parcelExtent.centerLat
         }
       });
-
-      // Ensure the parcel CRS is registered in proj4
-      await this.geoTransformService.ensureCrsDefined(this.parcelsEpsg());
 
       // Use parcel extent for the reference point (not building extent)
       this.parcelLayerResult = this.parcelLayerService.createParcelLayer(

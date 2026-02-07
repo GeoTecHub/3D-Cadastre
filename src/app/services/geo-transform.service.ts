@@ -147,6 +147,30 @@ export class GeoTransformService {
   }
 
   /**
+   * Convert coordinates from any source EPSG to WGS84 (lon/lat).
+   * Returns null if transformation fails or result is invalid.
+   */
+  toWGS84(x: number, y: number, srcEpsg: number): [number, number] | null {
+    // If already WGS84, just return as-is
+    if (srcEpsg === 4326) {
+      if (this.isValidLonLat(x, y)) {
+        return [x, y];
+      }
+      return null;
+    }
+
+    try {
+      const result = proj4(`EPSG:${srcEpsg}`, 'EPSG:4326', [x, y]) as [number, number];
+      if (this.isValidLonLat(result[0], result[1])) {
+        return result;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Parse the EPSG code from a CityJSON referenceSystem string.
    * Handles formats like:
    *   "urn:ogc:def:crs:EPSG::4326"
