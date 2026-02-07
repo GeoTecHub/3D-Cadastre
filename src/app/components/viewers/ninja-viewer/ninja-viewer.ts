@@ -277,7 +277,8 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     if (this.cityModel) {
       this.buildLookupMap(this.cityModel);
       this.normalizeModelScale(this.cityModel);
-      this.scene.add(this.cityModel);
+      // TEMPORARILY DISABLED: Don't add building to scene so we can see parcels
+      // this.scene.add(this.cityModel);
       this.fitCameraToModel();
       this.refreshModelMaterials();
     }
