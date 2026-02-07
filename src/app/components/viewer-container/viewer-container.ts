@@ -64,7 +64,7 @@ export class ViewerContainer {
   osmMapStatusMsg = signal<string | null>(null);
 
   // InfoBhoomi API configuration for parcel loading
-  private readonly INFOBHOOMI_TOKEN = 'f23c51d8f1526332f9f10d9431aeb9c636c9090c';
+  private readonly INFOBHOOMI_TOKEN = '854a7ac7f06253451628d479c233d5842c5dfc1e';
   private parcelsLoading = signal(false);
 
   // Dialog visibility
