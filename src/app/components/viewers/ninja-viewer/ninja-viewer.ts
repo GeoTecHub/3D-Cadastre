@@ -1004,8 +1004,9 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
 
       // Get building scene parameters for positioning
       const box = new THREE.Box3().setFromObject(this.cityModel);
-      const buildingCenter = box.getCenter(new THREE.Vector3());
+      const buildingSceneCenter = box.getCenter(new THREE.Vector3());
       const buildingSize = box.getSize(new THREE.Vector3());
+      const buildingMaxDim = Math.max(buildingSize.x, buildingSize.y, 1);
 
       // Position parcels at the building's ground level
       this.parcelGroundZ = box.min.z + 0.1;
@@ -1017,24 +1018,57 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
       const parcelHeightMeters = Math.abs(maxMY - minMY);
       const parcelMaxDimMeters = Math.max(parcelWidthMeters, parcelHeightMeters, 1);
 
-      // Use building's scene size to determine scale
-      // This ensures parcels are rendered at a reasonable size relative to the building
-      const buildingMaxDim = Math.max(buildingSize.x, buildingSize.y, 1);
+      let sceneCenter: THREE.Vector3;
+      let sceneToMeterRatio: number = 1; // Default to 1:1 scale
 
-      // Scale factor: how many scene units per meter of parcel
-      // We want parcels to fit nicely around the building
-      const targetSceneSize = buildingMaxDim * 2; // Parcels span ~2x building size
-      const sceneToMeterRatio = targetSceneSize / parcelMaxDimMeters;
+      // Get building's geo location (using existing CityJSON metadata)
+      const cityJsonData = this.cityData();
+      const buildingGeoExtent = cityJsonData ? await this.geoTransformService.getGeoExtent(cityJsonData) : null;
 
-      // Scene center: position parcels centered around the building
-      const sceneCenter = new THREE.Vector3(buildingCenter.x, buildingCenter.y, this.parcelGroundZ);
+      if (buildingGeoExtent) {
+        // --- GEOREFERENCED MODE: Use real geographic offset ---
 
-      console.info('Parcel layer params (parcel-centric):', {
+        // Convert both building and parcel extent centers to Web Mercator
+        const [bX, bY] = this.geoTransform.lonLatToWebMercator(buildingGeoExtent.centerLon, buildingGeoExtent.centerLat);
+        const [pX, pY] = this.geoTransform.lonLatToWebMercator(parcelExtent.centerLon, parcelExtent.centerLat);
+
+        // Calculate the real-world offset in meters
+        const offsetX = pX - bX;
+        const offsetY = pY - bY;
+
+        // Apply offset to the scene center
+        sceneCenter = new THREE.Vector3(
+          buildingSceneCenter.x + offsetX,
+          buildingSceneCenter.y + offsetY,
+          this.parcelGroundZ
+        );
+
+        // Use real-world scale (1 unit = 1 meter)
+        sceneToMeterRatio = 1;
+
+        console.info('Parcel layer: Using georeferenced positioning', {
+          buildingGeoCenter: [buildingGeoExtent.centerLon, buildingGeoExtent.centerLat],
+          parcelGeoCenter: [parcelExtent.centerLon, parcelExtent.centerLat],
+          offsetMeters: [offsetX, offsetY],
+          sceneToMeterRatio
+        });
+      } else {
+        // --- FALLBACK MODE: Building not georeferenced, use heuristic centering ---
+        console.warn('Building not georeferenced, using fallback centering for parcel layer.');
+
+        // Scale parcels to fit around building (2x building size)
+        const targetSceneSize = buildingMaxDim * 2;
+        sceneToMeterRatio = targetSceneSize / parcelMaxDimMeters;
+
+        // Center parcels on building
+        sceneCenter = new THREE.Vector3(buildingSceneCenter.x, buildingSceneCenter.y, this.parcelGroundZ);
+      }
+
+      console.info('Parcel layer params:', {
         sceneCenter: sceneCenter.toArray(),
         sceneToMeterRatio,
         parcelMaxDimMeters,
         buildingMaxDim,
-        targetSceneSize,
         parcelsEpsg: this.parcelsEpsg(),
         parcelExtent: {
           minLon: parcelExtent.minLon,
@@ -1094,7 +1128,12 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
    *
    * Supports two modes:
    * 1. Standalone: Parcels displayed centered at origin with OSM background
-   * 2. With Building: Parcels positioned relative to the building model
+   * 2. With Building: Parcels positioned using REAL geographic offset from building
+   *
+   * IMPORTANT: When a building is georeferenced, we calculate the exact offset
+   * between the building's geographic center and the parcels' geographic center,
+   * then apply that offset in scene coordinates. This preserves the true spatial
+   * relationship between the building and land parcels.
    */
   private async loadCadastralPolygons(): Promise<void> {
     const parcels = this.parcelsData();
@@ -1115,7 +1154,7 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
         return;
       }
 
-      // Calculate parcel dimensions in meters
+      // Calculate parcel dimensions in meters (for fallback scaling)
       const [minMX, minMY] = this.geoTransform.lonLatToWebMercator(extent.minLon, extent.minLat);
       const [maxMX, maxMY] = this.geoTransform.lonLatToWebMercator(extent.maxLon, extent.maxLat);
       const parcelWidthMeters = Math.abs(maxMX - minMX);
@@ -1123,28 +1162,66 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
       const parcelMaxDimMeters = Math.max(parcelWidthMeters, parcelHeightMeters, 1);
 
       let sceneCenter: THREE.Vector3;
-      let sceneScale: number;
+      let sceneScale: number = 1; // Default to 1:1 scale (1 unit = 1 meter)
       let elevationAboveGround: number;
 
       // Check if we have a building model loaded
       if (this.cityModel) {
-        // Mode: Overlay on building
+        // 1. Get the building's reference point (center of the model in scene coords)
         const box = new THREE.Box3().setFromObject(this.cityModel);
-        const buildingCenter = box.getCenter(new THREE.Vector3());
+        const buildingSceneCenter = box.getCenter(new THREE.Vector3());
         const buildingSize = box.getSize(new THREE.Vector3());
         const buildingMaxDim = Math.max(buildingSize.x, buildingSize.y, 1);
 
-        // Scale parcels to fit around building (2x building size)
-        const targetSceneSize = buildingMaxDim * 2;
-        sceneScale = targetSceneSize / parcelMaxDimMeters;
+        // 2. Get building's geo location (using existing CityJSON metadata)
+        const cityJsonData = this.cityData();
+        const buildingGeoExtent = cityJsonData ? await this.geoTransformService.getGeoExtent(cityJsonData) : null;
 
-        // Center parcels around building
-        sceneCenter = new THREE.Vector3(buildingCenter.x, buildingCenter.y, box.min.z);
+        if (buildingGeoExtent) {
+          // --- GEOREFERENCED MODE: Use real geographic offset ---
+
+          // 3. Convert both building and parcel extent centers to Web Mercator
+          const [bX, bY] = this.geoTransform.lonLatToWebMercator(buildingGeoExtent.centerLon, buildingGeoExtent.centerLat);
+          const [pX, pY] = this.geoTransform.lonLatToWebMercator(extent.centerLon, extent.centerLat);
+
+          // 4. Calculate the real-world offset in meters
+          const offsetX = pX - bX;
+          const offsetY = pY - bY;
+
+          // 5. Apply offset to the scene center
+          // The scene uses the same coordinate system orientation as CityJSON (X=east, Y=north)
+          sceneCenter = new THREE.Vector3(
+            buildingSceneCenter.x + offsetX,
+            buildingSceneCenter.y + offsetY,
+            box.min.z
+          );
+
+          // 6. Use real-world scale (1 unit = 1 meter)
+          // This assumes the CityJSON viewer uses 1 unit = 1 meter (standard for CityJSON/Three.js)
+          sceneScale = 1;
+
+          console.info('Cadastral polygons: Using georeferenced positioning', {
+            buildingGeoCenter: [buildingGeoExtent.centerLon, buildingGeoExtent.centerLat],
+            parcelGeoCenter: [extent.centerLon, extent.centerLat],
+            offsetMeters: [offsetX, offsetY],
+            sceneScale
+          });
+        } else {
+          // --- FALLBACK MODE: Building not georeferenced, use heuristic centering ---
+          console.warn('Building not georeferenced, using fallback centering.');
+
+          // Scale parcels to fit around building (2x building size)
+          const targetSceneSize = buildingMaxDim * 2;
+          sceneScale = targetSceneSize / parcelMaxDimMeters;
+
+          // Center parcels on building
+          sceneCenter = new THREE.Vector3(buildingSceneCenter.x, buildingSceneCenter.y, box.min.z);
+        }
 
         // Elevation: just above building ground level
         elevationAboveGround = box.min.z + 0.2;
       } else {
-        // Mode: Standalone parcel viewing
+        // Mode: Standalone parcel viewing (no building)
         const targetSceneSize = 200; // Scene units
         sceneScale = targetSceneSize / parcelMaxDimMeters;
         sceneCenter = new THREE.Vector3(0, 0, 0);
