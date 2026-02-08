@@ -1148,7 +1148,7 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
         const targetSceneSize = 200; // Scene units
         sceneScale = targetSceneSize / parcelMaxDimMeters;
         sceneCenter = new THREE.Vector3(0, 0, 0);
-        elevationAboveGround = 0.5;
+        elevationAboveGround = 0.1;  // Low elevation above OSM ground
       }
 
       console.info('Loading cadastral polygons:', {
@@ -1243,7 +1243,7 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
         extent,
         sceneCenter,
         sceneSizeFactor,
-        { zOffset: -0.1 }  // Below cadastral polygons
+        { zOffset: -0.5 }  // Well below cadastral polygons to prevent z-fighting
       );
 
       if (result) {

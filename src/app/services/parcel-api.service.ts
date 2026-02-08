@@ -185,16 +185,68 @@ export class ParcelApiService {
     // Handle different response formats
     const parcels = response.data || response.results || response.features || [];
 
+    // Debug: Log raw parcel data structure
+    if (parcels.length > 0) {
+      const sample = parcels[0];
+      console.debug('ParcelApiService: Raw parcel sample:', {
+        keys: Object.keys(sample),
+        hasGeometry: !!sample.geometry,
+        hasGeomWkt: !!sample.geom_wkt,
+        hasCoordinates: !!sample.coordinates,
+        geometryType: sample.geometry?.type,
+        // Log first few coordinates to check format (lon/lat order)
+        sampleCoords: sample.geometry?.coordinates
+          ? this.getSampleCoords(sample.geometry)
+          : sample.coordinates?.slice(0, 3)
+      });
+    }
+
     const features: ParcelFeature[] = parcels
       .filter(p => this.hasValidGeometry(p))
       .map(p => this.convertToFeature(p));
 
     console.info(`ParcelApiService: Converted ${features.length} parcels to GeoJSON`);
 
+    // Debug: Log first converted feature
+    if (features.length > 0) {
+      const first = features[0];
+      const coords = first.geometry.type === 'Polygon'
+        ? (first.geometry.coordinates as number[][][])[0]?.slice(0, 3)
+        : (first.geometry.coordinates as number[][][][])[0]?.[0]?.slice(0, 3);
+      console.debug('ParcelApiService: Converted feature sample:', {
+        parcelId: first.properties.parcelId,
+        geometryType: first.geometry.type,
+        coordsSample: coords?.map(c => `[${c[0]?.toFixed(6)}, ${c[1]?.toFixed(6)}]`).join(', '),
+        coordFormat: coords?.[0] ? (
+          Math.abs(coords[0][0]) <= 180 && Math.abs(coords[0][1]) <= 90
+            ? 'Looks like WGS84 [lon, lat]'
+            : 'May be projected coordinates (not WGS84)'
+        ) : 'Unknown'
+      });
+    }
+
     return {
       type: 'FeatureCollection',
       features
     };
+  }
+
+  /**
+   * Get sample coordinates from geometry for logging.
+   */
+  private getSampleCoords(geometry: { type: string; coordinates: unknown }): string {
+    try {
+      if (geometry.type === 'Polygon') {
+        const coords = (geometry.coordinates as number[][][])[0];
+        return coords?.slice(0, 3).map(c => `[${c[0]?.toFixed(6)}, ${c[1]?.toFixed(6)}]`).join(', ') || 'empty';
+      } else if (geometry.type === 'MultiPolygon') {
+        const coords = (geometry.coordinates as number[][][][])[0]?.[0];
+        return coords?.slice(0, 3).map(c => `[${c[0]?.toFixed(6)}, ${c[1]?.toFixed(6)}]`).join(', ') || 'empty';
+      }
+    } catch {
+      return 'parse error';
+    }
+    return 'unknown type';
   }
 
   /**

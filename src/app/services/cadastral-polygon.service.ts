@@ -130,6 +130,9 @@ export class CadastralPolygonService {
 
     const polygonDataList: CadastralPolygonData[] = [];
 
+    // Reset z-counter for new layer
+    this.parcelZCounter = 0;
+
     // Reference point for coordinate transformation (center of extent in Web Mercator)
     const refMerc = this.geoTransform.lonLatToWebMercator(extent.centerLon, extent.centerLat);
 
@@ -168,6 +171,9 @@ export class CadastralPolygonService {
     return { group, polygons: polygonDataList, extent };
   }
 
+  // Counter for unique z-offsets to prevent z-fighting between parcels
+  private parcelZCounter = 0;
+
   /**
    * Create a single cadastral polygon with boundary and optional fill.
    *
@@ -187,6 +193,15 @@ export class CadastralPolygonService {
 
     const { geometry, properties } = feature;
     if (!geometry || !properties?.parcelId) return null;
+
+    // Log raw coordinates for debugging (first 3 coords of first ring)
+    const firstRing = geometry.type === 'Polygon'
+      ? (geometry.coordinates as number[][][])[0]
+      : (geometry.coordinates as number[][][][])[0]?.[0];
+    if (firstRing && firstRing.length > 0) {
+      console.debug(`Parcel ${properties.parcelId} raw coords (first 3):`,
+        firstRing.slice(0, 3).map(c => `[${c[0]?.toFixed(6)}, ${c[1]?.toFixed(6)}]`).join(', '));
+    }
 
     // Get all polygon rings (outer boundary + any holes)
     const allPolygons = this.extractPolygonRings(geometry);
@@ -219,13 +234,17 @@ export class CadastralPolygonService {
     // The first ring is the outer boundary (legal boundary)
     const outerBoundary = scenePolygons[0];
 
+    // Give each parcel a unique z-offset to prevent z-fighting between overlapping parcels
+    const parcelZOffset = this.parcelZCounter * 0.001;
+    this.parcelZCounter++;
+
     // Create boundary line (exact legal boundary)
-    const boundaryLine = this.createBoundaryLine(outerBoundary, properties, boundaryWidth);
+    const boundaryLine = this.createBoundaryLine(outerBoundary, properties, boundaryWidth, parcelZOffset);
 
     // Create fill shape if requested
     let fillShape: THREE.Mesh | null = null;
     if (showFill) {
-      fillShape = this.createFillShape(scenePolygons, properties, fillOpacity, groundZ);
+      fillShape = this.createFillShape(scenePolygons, properties, fillOpacity, groundZ, parcelZOffset);
     }
 
     return {
@@ -289,7 +308,8 @@ export class CadastralPolygonService {
   private createBoundaryLine(
     vertices: THREE.Vector3[],
     properties: CadastralProperties,
-    lineWidth: number
+    lineWidth: number,
+    zOffset: number = 0
   ): THREE.Line {
     // Create geometry from vertices
     const geometry = new THREE.BufferGeometry().setFromPoints(vertices);
@@ -310,8 +330,11 @@ export class CadastralPolygonService {
       landUse: properties.landUse
     };
 
-    // Raise slightly above fill to ensure visibility
-    line.position.z += 0.01;
+    // Raise above fill to ensure visibility (base offset + unique parcel offset)
+    line.position.z += 0.05 + zOffset;
+
+    // Set render order to ensure boundaries render after fills
+    line.renderOrder = 2;
 
     return line;
   }
@@ -324,7 +347,8 @@ export class CadastralPolygonService {
     rings: THREE.Vector3[][],
     properties: CadastralProperties,
     opacity: number,
-    groundZ: number
+    groundZ: number,
+    zOffset: number = 0
   ): THREE.Mesh | null {
     if (rings.length === 0 || rings[0].length < 3) return null;
 
@@ -362,8 +386,11 @@ export class CadastralPolygonService {
       color,
       transparent: true,
       opacity,
-      side: THREE.DoubleSide,
-      depthWrite: false  // Prevent z-fighting with OSM
+      side: THREE.FrontSide,  // Use FrontSide to reduce z-fighting
+      depthWrite: true,       // Enable depth write for proper ordering
+      polygonOffset: true,    // Enable polygon offset to prevent z-fighting
+      polygonOffsetFactor: 1, // Push polygons back slightly
+      polygonOffsetUnits: 1
     });
 
     const mesh = new THREE.Mesh(geometry, material);
@@ -374,11 +401,11 @@ export class CadastralPolygonService {
       landUse: properties.landUse
     };
 
-    // Position at ground level
-    mesh.position.z = groundZ;
+    // Position at ground level with unique offset per parcel
+    mesh.position.z = groundZ + zOffset;
 
-    // Rotate to lie flat on XY plane (Shape is created in XY, we want it in XY with Z up)
-    // No rotation needed since we're using X,Y coordinates directly
+    // Set render order to ensure fills render before boundaries
+    mesh.renderOrder = 1;
 
     return mesh;
   }
@@ -434,20 +461,34 @@ export class CadastralPolygonService {
 
   /**
    * Calculate geographic extent from cadastral features.
+   * Also validates coordinate format and logs warnings if coordinates appear invalid.
    */
   calculateExtent(parcels: CadastralFeatureCollection): GeoExtent | null {
     let minLon = Infinity, maxLon = -Infinity;
     let minLat = Infinity, maxLat = -Infinity;
+    let totalCoords = 0;
+    let validCoords = 0;
+    let outOfRangeCoords = 0;
 
     const updateBounds = (lon: number, lat: number) => {
+      totalCoords++;
       if (!isFinite(lon) || !isFinite(lat)) return;
-      if (lon < -180 || lon > 180 || lat < -90 || lat > 90) return;
 
+      // Check if coordinates are valid WGS84
+      if (lon < -180 || lon > 180 || lat < -90 || lat > 90) {
+        outOfRangeCoords++;
+        return;
+      }
+
+      validCoords++;
       if (lon < minLon) minLon = lon;
       if (lon > maxLon) maxLon = lon;
       if (lat < minLat) minLat = lat;
       if (lat > maxLat) maxLat = lat;
     };
+
+    // Collect sample coordinates for format detection
+    const sampleCoords: number[][] = [];
 
     for (const feature of parcels.features) {
       const allPolygons = this.extractPolygonRings(feature.geometry);
@@ -456,6 +497,9 @@ export class CadastralPolygonService {
         for (const ring of polygon) {
           for (const coord of ring) {
             if (Array.isArray(coord) && coord.length >= 2) {
+              if (sampleCoords.length < 10) {
+                sampleCoords.push([coord[0], coord[1]]);
+              }
               updateBounds(coord[0], coord[1]);
             }
           }
@@ -463,9 +507,35 @@ export class CadastralPolygonService {
       }
     }
 
+    // Log coordinate format analysis
+    if (sampleCoords.length > 0) {
+      const formatAnalysis = this.analyzeCoordinateFormat(sampleCoords);
+      console.info('CadastralPolygonService: Coordinate analysis', {
+        totalCoords,
+        validCoords,
+        outOfRangeCoords,
+        format: formatAnalysis
+      });
+
+      if (formatAnalysis.warning) {
+        console.warn('CadastralPolygonService: ' + formatAnalysis.warning);
+      }
+    }
+
     if (!isFinite(minLon) || !isFinite(maxLon) || !isFinite(minLat) || !isFinite(maxLat)) {
+      console.warn('CadastralPolygonService: No valid WGS84 coordinates found. ' +
+        `Out of ${totalCoords} coords, ${outOfRangeCoords} were out of WGS84 range.`);
       return null;
     }
+
+    console.info('CadastralPolygonService: Extent calculated', {
+      minLon: minLon.toFixed(6),
+      maxLon: maxLon.toFixed(6),
+      minLat: minLat.toFixed(6),
+      maxLat: maxLat.toFixed(6),
+      widthDeg: (maxLon - minLon).toFixed(6),
+      heightDeg: (maxLat - minLat).toFixed(6)
+    });
 
     return {
       centerLon: (minLon + maxLon) / 2,
@@ -476,6 +546,54 @@ export class CadastralPolygonService {
       maxLat,
       epsg: 4326,
       crsExplicit: true
+    };
+  }
+
+  /**
+   * Analyze sample coordinates to detect potential format issues.
+   */
+  private analyzeCoordinateFormat(coords: number[][]): { format: string; warning?: string } {
+    if (coords.length === 0) {
+      return { format: 'empty' };
+    }
+
+    // Check if coordinates look like WGS84 lon/lat
+    const allInLonRange = coords.every(c => c[0] >= -180 && c[0] <= 180);
+    const allInLatRange = coords.every(c => c[1] >= -90 && c[1] <= 90);
+    const firstCoordInLatRange = coords.every(c => c[0] >= -90 && c[0] <= 90);
+    const secondCoordInLonRange = coords.every(c => c[1] >= -180 && c[1] <= 180);
+
+    // Check for projected coordinates (large numbers)
+    const hasLargeValues = coords.some(c => Math.abs(c[0]) > 180 || Math.abs(c[1]) > 180);
+
+    if (allInLonRange && allInLatRange) {
+      // Coordinates look like valid WGS84 [lon, lat]
+      // But check if they might be swapped [lat, lon]
+      if (firstCoordInLatRange && !secondCoordInLonRange) {
+        return {
+          format: 'possibly swapped [lat, lon]',
+          warning: 'Coordinates may be in [lat, lon] order instead of [lon, lat]. ' +
+            'GeoJSON standard uses [lon, lat] order.'
+        };
+      }
+      return { format: 'WGS84 [lon, lat]' };
+    }
+
+    if (hasLargeValues) {
+      // Check if they might be in meters (projected coordinates)
+      const avgMagnitude = coords.reduce((sum, c) => sum + Math.abs(c[0]) + Math.abs(c[1]), 0) / (coords.length * 2);
+      if (avgMagnitude > 100000) {
+        return {
+          format: 'projected (meters)',
+          warning: 'Coordinates appear to be in a projected CRS (meters), not WGS84. ' +
+            'Expected EPSG:4326 (lon/lat in degrees). Check the parcelsEpsg input setting.'
+        };
+      }
+    }
+
+    return {
+      format: 'unknown',
+      warning: 'Could not determine coordinate format. Check if data is in WGS84 (EPSG:4326).'
     };
   }
 }
