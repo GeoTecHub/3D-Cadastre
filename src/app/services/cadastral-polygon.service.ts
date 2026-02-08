@@ -97,12 +97,14 @@ export class CadastralPolygonService {
   /**
    * Create a layer of cadastral polygons for display in the 3D scene.
    *
-   * @param parcels - GeoJSON FeatureCollection with parcel polygons in WGS84
+   * @param parcels - GeoJSON FeatureCollection with parcel polygons
+   * @param srcEpsg - Source EPSG code of the parcel coordinates (e.g., 4326 for WGS84, 32643 for UTM Zone 43N)
    * @param displayOptions - Options for rendering (show fills, boundary style, etc.)
    * @param sceneParams - Scene positioning parameters
    */
   createCadastralLayer(
     parcels: CadastralFeatureCollection,
+    srcEpsg: number,
     options: {
       showFills?: boolean;          // Whether to show filled polygons (default: true)
       fillOpacity?: number;         // Fill opacity (default: 0.5)
@@ -110,7 +112,7 @@ export class CadastralPolygonService {
       elevationAboveGround?: number; // Height above OSM ground (default: 0.5)
     } = {},
     sceneParams: {
-      extent: GeoExtent;           // Geographic extent of the parcels
+      extent: GeoExtent;           // Geographic extent of the parcels (in WGS84)
       sceneCenter: THREE.Vector3;  // Center point in scene coordinates
       sceneScale: number;          // Scale factor (scene units per meter)
     }
@@ -138,6 +140,7 @@ export class CadastralPolygonService {
 
     console.info('CadastralPolygonService: Creating cadastral layer', {
       parcelCount: parcels.features.length,
+      srcEpsg,
       extent: { lon: [extent.minLon, extent.maxLon], lat: [extent.minLat, extent.maxLat] },
       sceneCenter: sceneCenter.toArray(),
       sceneScale,
@@ -148,6 +151,7 @@ export class CadastralPolygonService {
     for (const feature of parcels.features) {
       const polygonData = this.createCadastralPolygon(
         feature,
+        srcEpsg,
         refMerc,
         sceneCenter,
         sceneScale,
@@ -182,6 +186,7 @@ export class CadastralPolygonService {
    */
   private createCadastralPolygon(
     feature: CadastralFeature,
+    srcEpsg: number,
     refMerc: [number, number],
     sceneCenter: THREE.Vector3,
     sceneScale: number,
@@ -218,8 +223,8 @@ export class CadastralPolygonService {
         for (const coord of ring) {
           if (!Array.isArray(coord) || coord.length < 2) continue;
 
-          const [lon, lat] = coord;
-          const scenePoint = this.wgs84ToScene(lon, lat, refMerc, sceneCenter, sceneScale, groundZ);
+          const [x, y] = coord;
+          const scenePoint = this.coordToScene(x, y, srcEpsg, refMerc, sceneCenter, sceneScale, groundZ);
           sceneRing.push(scenePoint);
         }
 
@@ -272,23 +277,25 @@ export class CadastralPolygonService {
   }
 
   /**
-   * Transform WGS84 (lon, lat) to scene coordinates.
+   * Transform coordinates from source EPSG to scene coordinates.
    *
-   * Simple, direct transformation:
-   * 1. WGS84 -> Web Mercator (meters)
+   * Transformation:
+   * 1. Source EPSG -> Web Mercator (meters)
    * 2. Offset from reference center
    * 3. Scale to scene units
    */
-  private wgs84ToScene(
-    lon: number,
-    lat: number,
+  private coordToScene(
+    x: number,
+    y: number,
+    srcEpsg: number,
     refMerc: [number, number],
     sceneCenter: THREE.Vector3,
     sceneScale: number,
     groundZ: number
   ): THREE.Vector3 {
-    // Convert WGS84 to Web Mercator (meters)
-    const merc = this.geoTransform.lonLatToWebMercator(lon, lat);
+    // Convert source coordinates to Web Mercator (meters)
+    const srcProj = `EPSG:${srcEpsg}`;
+    const merc = proj4(srcProj, 'EPSG:3857', [x, y]) as [number, number];
 
     // Offset from reference center (in meters)
     const dx = merc[0] - refMerc[0];
@@ -459,22 +466,44 @@ export class CadastralPolygonService {
 
   /**
    * Calculate geographic extent from cadastral features.
-   * Also validates coordinate format and logs warnings if coordinates appear invalid.
+   * Transforms coordinates from source EPSG to WGS84 for the extent.
+   *
+   * @param parcels - The cadastral feature collection
+   * @param srcEpsg - Source EPSG code of the coordinates (e.g., 4326, 32643)
    */
-  calculateExtent(parcels: CadastralFeatureCollection): GeoExtent | null {
+  calculateExtent(parcels: CadastralFeatureCollection, srcEpsg: number): GeoExtent | null {
     let minLon = Infinity, maxLon = -Infinity;
     let minLat = Infinity, maxLat = -Infinity;
     let totalCoords = 0;
     let validCoords = 0;
-    let outOfRangeCoords = 0;
+    let transformErrors = 0;
 
-    const updateBounds = (lon: number, lat: number) => {
+    const srcProj = `EPSG:${srcEpsg}`;
+
+    const updateBounds = (x: number, y: number) => {
       totalCoords++;
-      if (!isFinite(lon) || !isFinite(lat)) return;
+      if (!isFinite(x) || !isFinite(y)) return;
 
-      // Check if coordinates are valid WGS84
+      let lon: number, lat: number;
+
+      if (srcEpsg === 4326) {
+        // Already WGS84
+        lon = x;
+        lat = y;
+      } else {
+        // Transform from source EPSG to WGS84
+        try {
+          const result = proj4(srcProj, 'EPSG:4326', [x, y]) as [number, number];
+          lon = result[0];
+          lat = result[1];
+        } catch (err) {
+          transformErrors++;
+          return;
+        }
+      }
+
+      // Validate transformed coordinates
       if (lon < -180 || lon > 180 || lat < -90 || lat > 90) {
-        outOfRangeCoords++;
         return;
       }
 
@@ -505,28 +534,21 @@ export class CadastralPolygonService {
       }
     }
 
-    // Log coordinate format analysis
-    if (sampleCoords.length > 0) {
-      const formatAnalysis = this.analyzeCoordinateFormat(sampleCoords);
-      console.info('CadastralPolygonService: Coordinate analysis', {
-        totalCoords,
-        validCoords,
-        outOfRangeCoords,
-        format: formatAnalysis
-      });
-
-      if (formatAnalysis.warning) {
-        console.warn('CadastralPolygonService: ' + formatAnalysis.warning);
-      }
-    }
+    // Log coordinate info
+    console.info('CadastralPolygonService: Coordinate processing', {
+      srcEpsg,
+      totalCoords,
+      validCoords,
+      transformErrors,
+      sampleInput: sampleCoords.slice(0, 3).map(c => `[${c[0]?.toFixed(2)}, ${c[1]?.toFixed(2)}]`)
+    });
 
     if (!isFinite(minLon) || !isFinite(maxLon) || !isFinite(minLat) || !isFinite(maxLat)) {
-      console.warn('CadastralPolygonService: No valid WGS84 coordinates found. ' +
-        `Out of ${totalCoords} coords, ${outOfRangeCoords} were out of WGS84 range.`);
+      console.warn(`CadastralPolygonService: No valid coordinates after transforming from EPSG:${srcEpsg}`);
       return null;
     }
 
-    console.info('CadastralPolygonService: Extent calculated', {
+    console.info('CadastralPolygonService: Extent calculated (WGS84)', {
       minLon: minLon.toFixed(6),
       maxLon: maxLon.toFixed(6),
       minLat: minLat.toFixed(6),
@@ -542,7 +564,7 @@ export class CadastralPolygonService {
       maxLon,
       minLat,
       maxLat,
-      epsg: 4326,
+      epsg: srcEpsg,
       crsExplicit: true
     };
   }
