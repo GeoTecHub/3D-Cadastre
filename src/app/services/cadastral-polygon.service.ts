@@ -386,11 +386,9 @@ export class CadastralPolygonService {
       color,
       transparent: true,
       opacity,
-      side: THREE.FrontSide,  // Use FrontSide to reduce z-fighting
-      depthWrite: true,       // Enable depth write for proper ordering
-      polygonOffset: true,    // Enable polygon offset to prevent z-fighting
-      polygonOffsetFactor: 1, // Push polygons back slightly
-      polygonOffsetUnits: 1
+      side: THREE.DoubleSide,  // DoubleSide for visibility from all angles
+      depthWrite: false,       // Disable depth write to prevent blinking/z-fighting
+      polygonOffset: false     // Physical separation is enough, no offset needed
     });
 
     const mesh = new THREE.Mesh(geometry, material);
