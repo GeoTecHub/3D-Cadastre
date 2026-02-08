@@ -148,9 +148,15 @@ export class ViewerContainer {
       // The user can import a building later via "Open File"
       // this.loadDefaultModel();
 
-      // Auto-load parcels from InfoBhoomi API
+      // Auto-load parcels: try API first, fall back to local file
       // Parcels load first and define the World Origin (0,0,0) at their center
-      this.loadParcelsFromInfoBhoomi();
+      const token = this.authService.getToken();
+      if (token) {
+        this.loadParcelsFromInfoBhoomi();
+      } else {
+        // No auth token - try loading from local parcels file
+        this.loadParcelsFromFile('/parcels.json');
+      }
     }
 
     effect(() => {
