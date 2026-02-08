@@ -857,16 +857,54 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
 
   // ─── OSM Ground Plane ─────────────────────────────────────
 
+  /**
+   * Load OSM ground plane tiles.
+   *
+   * Works with either building or parcel data - does not require building to be loaded.
+   */
   private async loadOsmGroundPlane(): Promise<void> {
     if (this.osmLoading || this.osmGroup) return;
 
+    let extent: GeoExtent | null = null;
+    let sceneCenter: THREE.Vector3;
+    let sceneSizeFactor: number;
+
+    // Try to get extent from building first
     const data = this.cityData();
-    if (!data || !this.cityModel) {
-      this.osmMapStatus.emit('no-crs');
-      return;
+    if (data && this.cityModel) {
+      extent = await this.geoTransformService.getGeoExtent(data);
+      if (extent) {
+        const box = new THREE.Box3().setFromObject(this.cityModel);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        sceneSizeFactor = Math.max(size.x, size.y, 1);
+        sceneCenter = new THREE.Vector3(center.x, center.y, box.min.z);
+      }
     }
 
-    const extent = await this.geoTransformService.getGeoExtent(data);
+    // Fall back to parcel extent if no building
+    if (!extent) {
+      const parcels = this.parcelsData();
+      if (parcels && parcels.features.length > 0) {
+        extent = this.calculateParcelExtent(parcels);
+        if (extent && this.worldOriginMercator) {
+          // Calculate scene center from parcel extent relative to world origin
+          const parcelCenterMerc = this.geoTransform.lonLatToWebMercator(
+            extent.centerLon,
+            extent.centerLat
+          );
+          const offsetX = parcelCenterMerc[0] - this.worldOriginMercator[0];
+          const offsetY = parcelCenterMerc[1] - this.worldOriginMercator[1];
+          sceneCenter = new THREE.Vector3(offsetX, offsetY, -0.5);
+
+          // Calculate scene size from extent
+          const [minMX, minMY] = this.geoTransform.lonLatToWebMercator(extent.minLon, extent.minLat);
+          const [maxMX, maxMY] = this.geoTransform.lonLatToWebMercator(extent.maxLon, extent.maxLat);
+          sceneSizeFactor = Math.max(Math.abs(maxMX - minMX), Math.abs(maxMY - minMY), 1);
+        }
+      }
+    }
+
     if (!extent) {
       this.osmMapStatus.emit('no-crs');
       return;
@@ -876,19 +914,11 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     this.osmMapStatus.emit('loading');
 
     try {
-      // Calculate the building's bounding box in scene coordinates
-      const box = new THREE.Box3().setFromObject(this.cityModel);
-      const center = box.getCenter(new THREE.Vector3());
-      const size = box.getSize(new THREE.Vector3());
-      const maxDim = Math.max(size.x, size.y, 1);
-
-      // Place the ground plane at the bottom of the building
-      const groundCenter = new THREE.Vector3(center.x, center.y, box.min.z);
-
       const result = await this.osmTileService.createGroundPlane(
         extent,
-        groundCenter,
-        maxDim
+        sceneCenter!,
+        sceneSizeFactor!,
+        { zOffset: -0.5 }
       );
 
       if (result && this.showOsmMap()) {
@@ -1058,92 +1088,59 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     };
   }
 
+  /**
+   * Load parcel layer using the World Origin methodology.
+   *
+   * This method no longer requires a building to be loaded first.
+   * Parcels can define the World Origin themselves if no building exists.
+   */
   private async loadParcelLayer(): Promise<void> {
     const parcels = this.parcelsData();
-    if (!parcels || !this.cityModel) return;
+    if (!parcels || parcels.features.length === 0) return;
 
     // Remove existing layer first
     this.removeParcelLayer();
 
     try {
       // Ensure the parcel CRS is registered in proj4 BEFORE calculating extent
-      // (needed for coordinate transformation in calculateParcelExtent)
       await this.geoTransformService.ensureCrsDefined(this.parcelsEpsg());
 
-      // Calculate extent from actual parcel data (not from building)
+      // Calculate extent from actual parcel data
       const parcelExtent = this.calculateParcelExtent(parcels);
       if (!parcelExtent) {
         console.warn('Cannot load parcel layer: no valid parcel extent');
         return;
       }
 
-      // Get building scene parameters for positioning
-      const box = new THREE.Box3().setFromObject(this.cityModel);
-      const buildingSceneCenter = box.getCenter(new THREE.Vector3());
-      const buildingSize = box.getSize(new THREE.Vector3());
-      const buildingMaxDim = Math.max(buildingSize.x, buildingSize.y, 1);
-
-      // Position parcels at the building's ground level
-      this.parcelGroundZ = box.min.z + 0.1;
-
-      // Calculate parcel extent in Web Mercator for sizing
-      const [minMX, minMY] = this.geoTransform.lonLatToWebMercator(parcelExtent.minLon, parcelExtent.minLat);
-      const [maxMX, maxMY] = this.geoTransform.lonLatToWebMercator(parcelExtent.maxLon, parcelExtent.maxLat);
-      const parcelWidthMeters = Math.abs(maxMX - minMX);
-      const parcelHeightMeters = Math.abs(maxMY - minMY);
-      const parcelMaxDimMeters = Math.max(parcelWidthMeters, parcelHeightMeters, 1);
-
-      let sceneCenter: THREE.Vector3;
-      let sceneToMeterRatio: number = 1; // Default to 1:1 scale
-
-      // Get building's geo location (using existing CityJSON metadata)
-      const cityJsonData = this.cityData();
-      const buildingGeoExtent = cityJsonData ? await this.geoTransformService.getGeoExtent(cityJsonData) : null;
-
-      if (buildingGeoExtent) {
-        // --- GEOREFERENCED MODE: Use real geographic offset ---
-
-        // Convert both building and parcel extent centers to Web Mercator
-        const [bX, bY] = this.geoTransform.lonLatToWebMercator(buildingGeoExtent.centerLon, buildingGeoExtent.centerLat);
-        const [pX, pY] = this.geoTransform.lonLatToWebMercator(parcelExtent.centerLon, parcelExtent.centerLat);
-
-        // Calculate the real-world offset in meters
-        const offsetX = pX - bX;
-        const offsetY = pY - bY;
-
-        // Apply offset to the scene center
-        sceneCenter = new THREE.Vector3(
-          buildingSceneCenter.x + offsetX,
-          buildingSceneCenter.y + offsetY,
-          this.parcelGroundZ
+      // Establish World Origin if not set (parcels define it if no building loaded yet)
+      if (!this.worldOriginMercator) {
+        this.worldOriginMercator = this.geoTransform.lonLatToWebMercator(
+          parcelExtent.centerLon,
+          parcelExtent.centerLat
         );
-
-        // Use real-world scale (1 unit = 1 meter)
-        sceneToMeterRatio = 1;
-
-        console.info('Parcel layer: Using georeferenced positioning', {
-          buildingGeoCenter: [buildingGeoExtent.centerLon, buildingGeoExtent.centerLat],
-          parcelGeoCenter: [parcelExtent.centerLon, parcelExtent.centerLat],
-          offsetMeters: [offsetX, offsetY],
-          sceneToMeterRatio
+        console.info('World Origin set to Parcel Center:', {
+          lonLat: [parcelExtent.centerLon, parcelExtent.centerLat],
+          mercator: this.worldOriginMercator
         });
-      } else {
-        // --- FALLBACK MODE: Building not georeferenced, use heuristic centering ---
-        console.warn('Building not georeferenced, using fallback centering for parcel layer.');
-
-        // Scale parcels to fit around building (2x building size)
-        const targetSceneSize = buildingMaxDim * 2;
-        sceneToMeterRatio = targetSceneSize / parcelMaxDimMeters;
-
-        // Center parcels on building
-        sceneCenter = new THREE.Vector3(buildingSceneCenter.x, buildingSceneCenter.y, this.parcelGroundZ);
       }
+
+      // Calculate parcel layer position relative to World Origin
+      const parcelCenterMerc = this.geoTransform.lonLatToWebMercator(
+        parcelExtent.centerLon,
+        parcelExtent.centerLat
+      );
+      const offsetX = parcelCenterMerc[0] - this.worldOriginMercator[0];
+      const offsetY = parcelCenterMerc[1] - this.worldOriginMercator[1];
+
+      // Elevation above ground (slight offset to avoid z-fighting)
+      this.parcelGroundZ = 0.1;
+
+      const sceneCenter = new THREE.Vector3(offsetX, offsetY, this.parcelGroundZ);
+      const sceneToMeterRatio = 1.0; // 1:1 scale for geospatial accuracy
 
       console.info('Parcel layer params:', {
         sceneCenter: sceneCenter.toArray(),
         sceneToMeterRatio,
-        parcelMaxDimMeters,
-        buildingMaxDim,
         parcelsEpsg: this.parcelsEpsg(),
         parcelExtent: {
           minLon: parcelExtent.minLon,
@@ -1155,11 +1152,11 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
         }
       });
 
-      // Use parcel extent for the reference point (not building extent)
+      // Create parcel layer using parcel extent as reference
       this.parcelLayerResult = this.parcelLayerService.createParcelLayer(
         parcels,
         this.parcelsEpsg(),
-        parcelExtent,  // Use parcel extent, not building extent
+        parcelExtent,
         sceneCenter,
         sceneToMeterRatio,
         this.parcelGroundZ
@@ -1168,6 +1165,11 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
       if (this.parcelLayerResult) {
         this.scene.add(this.parcelLayerResult.group);
         console.info(`Parcel layer loaded: ${this.parcelLayerResult.parcels.length} parcels`);
+
+        // If no building loaded, fit camera to parcel layer
+        if (!this.cityModel) {
+          this.fitCameraToParcelLayer();
+        }
 
         // Log first parcel position for debugging
         if (this.parcelLayerResult.parcels.length > 0) {
@@ -1181,6 +1183,31 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     } catch (err) {
       console.warn('Failed to load parcel layer:', err);
     }
+  }
+
+  /**
+   * Fit camera to show all parcels when no building is loaded.
+   */
+  private fitCameraToParcelLayer(): void {
+    if (!this.parcelLayerResult || !this.camera || !this.controls) return;
+
+    const box = new THREE.Box3().setFromObject(this.parcelLayerResult.group);
+    if (box.isEmpty()) return;
+
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z, 1);
+    const distance = maxDim * 1.5;
+
+    // Position camera looking down at parcels (bird's eye view)
+    this.camera.position.set(center.x, center.y - distance * 0.3, distance);
+    this.camera.lookAt(center);
+    this.camera.updateProjectionMatrix();
+
+    this.controls.target.copy(center);
+    this.controls.maxDistance = distance * 10;
+    this.controls.minDistance = maxDim * 0.1;
+    this.controls.update();
   }
 
   private removeParcelLayer(): void {
