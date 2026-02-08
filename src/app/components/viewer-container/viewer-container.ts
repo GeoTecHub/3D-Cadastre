@@ -144,8 +144,12 @@ export class ViewerContainer {
     this.isBrowser = isPlatformBrowser(platformId);
 
     if (this.isBrowser) {
-      this.loadDefaultModel();
+      // DISABLED: Don't auto-load building - let parcels define World Origin first
+      // The user can import a building later via "Open File"
+      // this.loadDefaultModel();
+
       // Auto-load parcels from InfoBhoomi API
+      // Parcels load first and define the World Origin (0,0,0) at their center
       this.loadParcelsFromInfoBhoomi();
     }
 
