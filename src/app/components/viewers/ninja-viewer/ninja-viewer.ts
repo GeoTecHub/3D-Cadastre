@@ -104,6 +104,11 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
   private selectedCadastralId: string | null = null;
   private useCadastralPolygons = true; // Use new approach by default
 
+  // World Origin in Web Mercator coordinates
+  // The first loaded geographic element (parcels or building) defines this origin
+  // All subsequent elements are positioned relative to this origin
+  private worldOriginMercator: [number, number] | null = null;
+
   // Explode view state
   private isExploded = false;
   private originalPositions = new Map<string, THREE.Vector3>();
@@ -142,8 +147,12 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     effect(() => {
       const data = this.cityData();
       untracked(() => {
-        if (data) this.loadModel();
-        else this.clearModel();
+        if (data) {
+          // loadModel is now async to support georeferencing
+          this.loadModel();
+        } else {
+          this.clearModel();
+        }
       });
     });
 
@@ -282,19 +291,85 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     this.removeCadastralPolygons();
     this.clearSelection(true);
     this.clearHover();
+    // Reset world origin when all content is cleared
+    this.worldOriginMercator = null;
   }
 
-  private loadModel(): void {
+  /**
+   * Load and position the CityJSON building model.
+   *
+   * NEW METHODOLOGY: World Origin-based positioning
+   * 1. If parcels were loaded first, worldOriginMercator is already set.
+   *    The building is positioned at its geographic offset from World Origin.
+   * 2. If building loads first, it defines the World Origin.
+   *
+   * Scale is always 1:1 (1 unit = 1 meter) for geospatial accuracy.
+   */
+  private async loadModel(): Promise<void> {
     this.clearModel();
+    // Create group but DO NOT auto-scale (we want 1:1 meter scale)
     this.cityModel = this.ninjaLoader.createSceneGroup({ colorBySemantic: true });
 
     if (this.cityModel) {
+      const data = this.cityData();
+
+      // 1. Attempt to Georeference the Building
+      let buildingOffset = new THREE.Vector3(0, 0, 0);
+
+      if (data) {
+        const extent = await this.geoTransformService.getGeoExtent(data);
+
+        if (extent) {
+          // If we don't have a world origin yet, use this building as origin
+          if (!this.worldOriginMercator) {
+            this.worldOriginMercator = this.geoTransform.lonLatToWebMercator(
+              extent.centerLon,
+              extent.centerLat
+            );
+            console.info('World Origin set to Building Center:', {
+              lonLat: [extent.centerLon, extent.centerLat],
+              mercator: this.worldOriginMercator
+            });
+          }
+
+          // Calculate offset: Building Center - World Origin
+          const bldgMerc = this.geoTransform.lonLatToWebMercator(extent.centerLon, extent.centerLat);
+          buildingOffset.set(
+            bldgMerc[0] - this.worldOriginMercator[0],
+            bldgMerc[1] - this.worldOriginMercator[1],
+            0
+          );
+
+          console.info('Placing building at georeferenced offset:', {
+            offset: [buildingOffset.x, buildingOffset.y],
+            buildingGeoCenter: [extent.centerLon, extent.centerLat]
+          });
+        }
+      }
+
+      // 2. Center the geometry itself to (0,0,0) so we can move it via the Group
+      // This fixes issues where the mesh vertices are at huge UTM coordinates
+      const box = new THREE.Box3().setFromObject(this.cityModel);
+      const center = box.getCenter(new THREE.Vector3());
+
+      // Translate model so its center is at origin
+      this.cityModel.position.x = -center.x;
+      this.cityModel.position.y = -center.y;
+      // Keep Z relative to ground (place bottom of building at z=0)
+      this.cityModel.position.z = -box.min.z;
+
+      // 3. Apply the Geographic Offset to the Group
+      this.cityModel.position.add(buildingOffset);
+
+      // 4. IMPORTANT: Scale to 1.0 (Real world meters) instead of normalizing
+      this.cityModel.scale.setScalar(1.0);
+
+      this.scene.add(this.cityModel);
       this.buildLookupMap(this.cityModel);
-      this.normalizeModelScale(this.cityModel);
-      // TEMPORARILY DISABLED: Don't add building to scene so we can see parcels
-      // this.scene.add(this.cityModel);
-      this.fitCameraToModel();
       this.refreshModelMaterials();
+
+      // Fit camera to model
+      this.fitCameraToModel();
     }
   }
 
@@ -1126,14 +1201,12 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
    * without any mesh triangulation that could distort boundaries.
    * Polygons are rendered directly on top of OSM tiles.
    *
-   * Supports two modes:
-   * 1. Standalone: Parcels displayed centered at origin with OSM background
-   * 2. With Building: Parcels positioned using REAL geographic offset from building
+   * NEW METHODOLOGY: Parcels define the World Origin
+   * 1. When Parcels load first: We calculate the center of the parcels in Web Mercator.
+   *    This becomes (0,0,0) in the 3D scene (worldOriginMercator).
+   * 2. When Building loads later: It will be positioned relative to this World Origin.
    *
-   * IMPORTANT: When a building is georeferenced, we calculate the exact offset
-   * between the building's geographic center and the parcels' geographic center,
-   * then apply that offset in scene coordinates. This preserves the true spatial
-   * relationship between the building and land parcels.
+   * Scale is always 1:1 (1 unit = 1 meter) for geospatial accuracy.
    */
   private async loadCadastralPolygons(): Promise<void> {
     const parcels = this.parcelsData();
@@ -1154,118 +1227,72 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
         return;
       }
 
-      // Calculate parcel dimensions in meters (for fallback scaling)
-      const [minMX, minMY] = this.geoTransform.lonLatToWebMercator(extent.minLon, extent.minLat);
-      const [maxMX, maxMY] = this.geoTransform.lonLatToWebMercator(extent.maxLon, extent.maxLat);
-      const parcelWidthMeters = Math.abs(maxMX - minMX);
-      const parcelHeightMeters = Math.abs(maxMY - minMY);
-      const parcelMaxDimMeters = Math.max(parcelWidthMeters, parcelHeightMeters, 1);
-
-      let sceneCenter: THREE.Vector3;
-      let sceneScale: number = 1; // Default to 1:1 scale (1 unit = 1 meter)
-      let elevationAboveGround: number;
-
-      // Check if we have a building model loaded
-      if (this.cityModel) {
-        // 1. Get the building's reference point (center of the model in scene coords)
-        const box = new THREE.Box3().setFromObject(this.cityModel);
-        const buildingSceneCenter = box.getCenter(new THREE.Vector3());
-        const buildingSize = box.getSize(new THREE.Vector3());
-        const buildingMaxDim = Math.max(buildingSize.x, buildingSize.y, 1);
-
-        // 2. Get building's geo location (using existing CityJSON metadata)
-        const cityJsonData = this.cityData();
-        const buildingGeoExtent = cityJsonData ? await this.geoTransformService.getGeoExtent(cityJsonData) : null;
-
-        if (buildingGeoExtent) {
-          // --- GEOREFERENCED MODE: Use real geographic offset ---
-
-          // 3. Convert both building and parcel extent centers to Web Mercator
-          const [bX, bY] = this.geoTransform.lonLatToWebMercator(buildingGeoExtent.centerLon, buildingGeoExtent.centerLat);
-          const [pX, pY] = this.geoTransform.lonLatToWebMercator(extent.centerLon, extent.centerLat);
-
-          // 4. Calculate the real-world offset in meters
-          const offsetX = pX - bX;
-          const offsetY = pY - bY;
-
-          // 5. Apply offset to the scene center
-          // The scene uses the same coordinate system orientation as CityJSON (X=east, Y=north)
-          sceneCenter = new THREE.Vector3(
-            buildingSceneCenter.x + offsetX,
-            buildingSceneCenter.y + offsetY,
-            box.min.z
-          );
-
-          // 6. Use real-world scale (1 unit = 1 meter)
-          // This assumes the CityJSON viewer uses 1 unit = 1 meter (standard for CityJSON/Three.js)
-          sceneScale = 1;
-
-          console.info('Cadastral polygons: Using georeferenced positioning', {
-            buildingGeoCenter: [buildingGeoExtent.centerLon, buildingGeoExtent.centerLat],
-            parcelGeoCenter: [extent.centerLon, extent.centerLat],
-            offsetMeters: [offsetX, offsetY],
-            sceneScale
-          });
-        } else {
-          // --- FALLBACK MODE: Building not georeferenced, use heuristic centering ---
-          console.warn('Building not georeferenced, using fallback centering.');
-
-          // Scale parcels to fit around building (2x building size)
-          const targetSceneSize = buildingMaxDim * 2;
-          sceneScale = targetSceneSize / parcelMaxDimMeters;
-
-          // Center parcels on building
-          sceneCenter = new THREE.Vector3(buildingSceneCenter.x, buildingSceneCenter.y, box.min.z);
-        }
-
-        // Elevation: just above building ground level
-        elevationAboveGround = box.min.z + 0.2;
-      } else {
-        // Mode: Standalone parcel viewing (no building)
-        const targetSceneSize = 200; // Scene units
-        sceneScale = targetSceneSize / parcelMaxDimMeters;
-        sceneCenter = new THREE.Vector3(0, 0, 0);
-        elevationAboveGround = 0.1;  // Low elevation above OSM ground
+      // 1. Establish World Origin if not set
+      // The first loaded geographic element (parcels) defines the world origin
+      if (!this.worldOriginMercator) {
+        this.worldOriginMercator = this.geoTransform.lonLatToWebMercator(
+          extent.centerLon,
+          extent.centerLat
+        );
+        console.info('World Origin set to Parcel Center:', {
+          lonLat: [extent.centerLon, extent.centerLat],
+          mercator: this.worldOriginMercator
+        });
       }
 
+      // 2. Calculate Parcel Layer Position relative to World Origin
+      // The service generates meshes centered at the extent center.
+      // We need to position that center at the correct offset from World Origin.
+      const parcelCenterMerc = this.geoTransform.lonLatToWebMercator(extent.centerLon, extent.centerLat);
+
+      // Offset = ParcelCenter - WorldOrigin
+      const offsetX = parcelCenterMerc[0] - this.worldOriginMercator[0];
+      const offsetY = parcelCenterMerc[1] - this.worldOriginMercator[1];
+
+      // Elevation above ground
+      const elevationAboveGround = 0.1;
+
       console.info('Loading cadastral polygons:', {
-        mode: this.cityModel ? 'overlay' : 'standalone',
         parcelCount: cadastralParcels.features.length,
         extent: {
           center: [extent.centerLon, extent.centerLat],
-          size: [parcelWidthMeters, parcelHeightMeters]
         },
-        sceneScale,
-        elevationAboveGround
+        worldOrigin: this.worldOriginMercator,
+        offset: [offsetX, offsetY],
+        sceneScale: 1.0
       });
 
-      // Create the cadastral layer
+      // 3. Create Layer (Scale = 1 for 1:1 meters)
+      // The service will center the mesh geometry at (0,0,0) locally
       this.cadastralLayerResult = this.cadastralPolygonService.createCadastralLayer(
         cadastralParcels,
         {
           showFills: true,
           fillOpacity: 0.5,
-          boundaryWidth: 3,
+          boundaryWidth: 2,
           elevationAboveGround
         },
         {
           extent,
-          sceneCenter,
-          sceneScale
+          sceneCenter: new THREE.Vector3(0, 0, 0),
+          sceneScale: 1.0
         }
       );
 
       if (this.cadastralLayerResult) {
+        // 4. Apply the calculated offset to the Group
+        this.cadastralLayerResult.group.position.set(offsetX, offsetY, 0);
         this.scene.add(this.cadastralLayerResult.group);
-        console.info(`Cadastral layer loaded: ${this.cadastralLayerResult.polygons.length} polygons`);
+        console.info(`Cadastral layer loaded: ${this.cadastralLayerResult.polygons.length} polygons at offset (${offsetX.toFixed(2)}, ${offsetY.toFixed(2)})`);
 
-        // Fit camera to show all parcels (only in standalone mode)
+        // If this is the only thing loaded, look at it
         if (!this.cityModel) {
           this.fitCameraToCadastralLayer();
         }
 
-        // Load OSM tiles as ground plane under the parcels
-        await this.loadOsmForCadastralExtent(extent, sceneCenter, sceneScale);
+        // Update OSM tiles to match this extent
+        const sceneCenter = new THREE.Vector3(offsetX, offsetY, 0);
+        await this.loadOsmForCadastralExtent(extent, sceneCenter, 1.0);
       }
     } catch (err) {
       console.error('Failed to load cadastral polygons:', err);
