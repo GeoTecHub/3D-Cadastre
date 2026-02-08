@@ -182,19 +182,14 @@ export class OsmTileService {
     }
 
     // Position the group at the scene center, at z = slightly below ground
+    // Note: The tile offset calculation (tx - centerTile.x) already uses the fractional
+    // tile coordinates, which correctly positions tiles so the geographic center is at (0,0).
+    // No additional fractional adjustment is needed here.
     group.position.set(
       sceneCenter.x,
       sceneCenter.y,
       sceneCenter.z + zOffset // Offset to avoid z-fighting with ground surfaces
     );
-
-    // Fine-tune: offset by the fractional part of the center tile
-    const fracX = (centerTile.x - Math.floor(centerTile.x));
-    const fracY = (centerTile.y - Math.floor(centerTile.y));
-    // The center tile's origin is at its top-left corner in tile coords
-    // We need to shift so the geographic center aligns with sceneCenter
-    group.position.x -= fracX * tileSizeInScene;
-    group.position.y += fracY * tileSizeInScene;
 
     return {
       group,
