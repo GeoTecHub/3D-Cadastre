@@ -114,10 +114,12 @@ export class OsmTileService {
     const minTile = this.lonLatToTile(tileExtent.minLon, tileExtent.maxLat, zoom); // top-left
     const maxTile = this.lonLatToTile(tileExtent.maxLon, tileExtent.minLat, zoom); // bottom-right
 
-    const startX = minTile.x - padding;
-    const endX = maxTile.x + padding;
-    const startY = minTile.y - padding;
-    const endY = maxTile.y + padding;
+    // Floor to integer tile indices so the loop iterates over whole tiles.
+    // The +size/2 in loadTileMesh then correctly centers each tile image.
+    const startX = Math.floor(minTile.x) - padding;
+    const endX = Math.floor(maxTile.x) + padding;
+    const startY = Math.floor(minTile.y) - padding;
+    const endY = Math.floor(maxTile.y) + padding;
 
     // Calculate the Web Mercator position of the building center
     const [centerMX, centerMY] = this.geoTransform.lonLatToWebMercator(
@@ -182,9 +184,6 @@ export class OsmTileService {
     }
 
     // Position the group at the scene center, at z = slightly below ground
-    // Note: The tile offset calculation (tx - centerTile.x) already uses the fractional
-    // tile coordinates, which correctly positions tiles so the geographic center is at (0,0).
-    // No additional fractional adjustment is needed here.
     group.position.set(
       sceneCenter.x,
       sceneCenter.y,
