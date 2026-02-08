@@ -1246,9 +1246,13 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
     try {
       // Convert to cadastral feature collection
       const cadastralParcels = parcels as unknown as CadastralFeatureCollection;
+      const srcEpsg = this.parcelsEpsg();
 
-      // Calculate extent from parcel data
-      const extent = this.cadastralPolygonService.calculateExtent(cadastralParcels);
+      // Ensure the parcel CRS is registered in proj4 BEFORE calculating extent
+      await this.geoTransformService.ensureCrsDefined(srcEpsg);
+
+      // Calculate extent from parcel data (transforms from srcEpsg to WGS84)
+      const extent = this.cadastralPolygonService.calculateExtent(cadastralParcels, srcEpsg);
       if (!extent) {
         console.warn('Cannot load cadastral polygons: no valid extent');
         return;
@@ -1293,6 +1297,7 @@ export class NinjaViewer implements AfterViewInit, OnDestroy {
       // The service will center the mesh geometry at (0,0,0) locally
       this.cadastralLayerResult = this.cadastralPolygonService.createCadastralLayer(
         cadastralParcels,
+        srcEpsg,
         {
           showFills: true,
           fillOpacity: 0.5,
